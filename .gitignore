@@ -1,2 +1,42 @@
+# OS
 .DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.nfs*
+
+# Build
+build/
+*.iso
+*.tar.gz
+*.squashfs
+
+# Logs
 *.log
+
+# Temp
+/tmp/
+*.tmp
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.eggs/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# Keys (never commit)
+*.key
+*.pem
+*.p12
+abuild.conf
+
+# Runtime
+/var/
+*.swap

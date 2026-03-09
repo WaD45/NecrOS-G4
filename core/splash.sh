@@ -1,7 +1,7 @@
 #!/sbin/openrc-run
+# shellcheck shell=sh
 # ============================================================================
-#  NecrOS SPLASH - Boot Animation
-#  Service OpenRC pour afficher le splash au démarrage
+#  NecrOS SPLASH — Boot Animation (OpenRC service)
 # ============================================================================
 
 description="NecrOS Boot Splash"
@@ -11,47 +11,29 @@ depend() {
     before agetty
 }
 
-# Couleurs
-C_RED='\033[1;31m'
-C_GREEN='\033[1;32m'
-C_CYAN='\033[1;36m'
-C_YELLOW='\033[1;33m'
-C_NC='\033[0m'
-
 start() {
-    clear
-    
-    # ASCII Art NecrOS
-    echo -e "${C_GREEN}"
-    cat << 'SKULL'
+    # Only display on the first virtual console
+    [ -e /dev/tty1 ] || return 0
 
-                            ....
-                          .'   ':.
-                         :       ::
-                        :         :
-                        :         :
-                        ::.......::
-                      .'           '.
-                     :    .....     :
-                    :   .:     :.    :
-                   :   :  O   O  :   :
-                   :   :    _    :   :
-                    :   :  \_/  :   :
-                     :   '.....'   :
-                      '.         .'
-                        '::....::'
-                       ::.      .:
-                      :   '.  .'  :
-                     :      ''     :
-                     :             :
-                     :   NECROS   :
-                      :           :
-                       ':.......:'
+    {
+        clear
 
+        printf '\033[1;32m'
+        cat <<'SKULL'
+
+                          ....
+                        .'    ':.
+                       :        ::
+                      :   .  .   :
+                      :  (o)(o)  :
+                       :   __   :
+                        :.\__/.:
+                          ':::'
 SKULL
+        printf '\033[0m'
 
-    echo -e "${C_CYAN}"
-    cat << 'BANNER'
+        printf '\033[1;36m'
+        cat <<'BANNER'
     ███╗   ██╗███████╗ ██████╗██████╗  ██████╗ ███████╗
     ████╗  ██║██╔════╝██╔════╝██╔══██╗██╔═══██╗██╔════╝
     ██╔██╗ ██║█████╗  ██║     ██████╔╝██║   ██║███████╗
@@ -59,48 +41,39 @@ SKULL
     ██║ ╚████║███████╗╚██████╗██║  ██║╚██████╔╝███████║
     ╚═╝  ╚═══╝╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝
 BANNER
+        printf '\033[0m\n'
 
-    echo -e "${C_NC}"
-    echo ""
-    echo -e "    ${C_RED}\"Resurrecting the Silicon Dead\"${C_NC}"
-    echo -e "    ${C_YELLOW}Version 0.3 Alpha - Le Kali du 32-bits${C_NC}"
-    echo ""
-    
-    # Barre de progression simulée
-    echo -n "    ["
-    for i in $(seq 1 30); do
-        echo -n "${C_GREEN}█${C_NC}"
-        sleep 0.05
-    done
-    echo "] ${C_GREEN}OK${C_NC}"
-    
-    echo ""
-    echo -e "    ${C_CYAN}Initializing systems...${C_NC}"
-    sleep 0.3
-    echo -e "    ${C_GREEN}[✓]${C_NC} Kernel loaded"
-    sleep 0.2
-    echo -e "    ${C_GREEN}[✓]${C_NC} Network stack ready"
-    sleep 0.2
-    echo -e "    ${C_GREEN}[✓]${C_NC} Security modules active"
-    sleep 0.2
-    echo -e "    ${C_GREEN}[✓]${C_NC} Toolbox available"
-    echo ""
-    echo -e "    ${C_YELLOW}Type 'startx' to enter the abyss...${C_NC}"
-    echo ""
-    sleep 1
+        _ver=$(cat /usr/local/necros/VERSION 2>/dev/null || echo "1.0.0")
+        printf '    \033[1;33m"Resurrecting the Silicon Dead" — v%s\033[0m\n\n' "$_ver"
+
+        # Progress bar
+        printf '    ['
+        _i=0
+        while [ "$_i" -lt 30 ]; do
+            printf '\033[1;32m█\033[0m'
+            _i=$((_i + 1))
+            # Use usleep if available, otherwise skip animation
+            usleep 30000 2>/dev/null || true
+        done
+        printf '] \033[1;32mOK\033[0m\n\n'
+
+        printf '    \033[1;36mBooting...\033[0m\n'
+        usleep 200000 2>/dev/null || true
+        printf '    \033[1;32m[✓]\033[0m Kernel: %s\n' "$(uname -r)"
+        usleep 100000 2>/dev/null || true
+        printf '    \033[1;32m[✓]\033[0m Arch:   %s\n' "$(uname -m)"
+        usleep 100000 2>/dev/null || true
+        printf '    \033[1;32m[✓]\033[0m RAM:    %sMB\n' "$(awk '/MemTotal/{printf "%d",$2/1024}' /proc/meminfo)"
+        usleep 100000 2>/dev/null || true
+        printf '    \033[1;32m[✓]\033[0m Ready\n\n'
+        printf '    \033[1;33mType "startx" to enter the abyss...\033[0m\n\n'
+        sleep 1
+
+    } > /dev/tty1 2>/dev/null
+
+    return 0
 }
 
 stop() {
     return 0
 }
-
-# Mode standalone (si exécuté directement)
-case "$1" in
-    start|"")
-        start
-        ;;
-    test)
-        # Test du splash sans OpenRC
-        start
-        ;;
-esac

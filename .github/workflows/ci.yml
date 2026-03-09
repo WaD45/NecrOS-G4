@@ -1,0 +1,60 @@
+name: NecrOS CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Lint all shell scripts
+        run: |
+          find . -name '*.sh' -not -path './.git/*' | while read f; do
+            echo "Checking $f..."
+            shellcheck -s sh -e SC1091,SC2034,SC1008 "$f" || true
+          done
+
+  syntax-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax check all scripts
+        run: |
+          FAIL=0
+          find . -name '*.sh' -not -path './.git/*' | while read f; do
+            if ! sh -n "$f" 2>/dev/null; then
+              echo "FAIL: $f"
+              FAIL=1
+            fi
+          done
+          exit $FAIL
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run test suite
+        run: sh tests/test_lib.sh
+
+  test-alpine:
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:3.20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install test deps
+        run: apk add --no-cache coreutils grep sed gawk
+
+      - name: Run test suite on Alpine
+        run: sh tests/test_lib.sh

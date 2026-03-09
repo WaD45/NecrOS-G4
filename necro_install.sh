@@ -1,433 +1,532 @@
 #!/bin/sh
-
 # ============================================================================
-#  ███╗   ██╗███████╗ ██████╗██████╗  ██████╗ ███████╗
-#  ████╗  ██║██╔════╝██╔════╝██╔══██╗██╔═══██╗██╔════╝
-#  ██╔██╗ ██║█████╗  ██║     ██████╔╝██║   ██║███████╗
-#  ██║╚██╗██║██╔══╝  ██║     ██╔══██╗██║   ██║╚════██║
-#  ██║ ╚████║███████╗╚██████╗██║  ██║╚██████╔╝███████║
-#  ╚═╝  ╚═══╝╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝
-#  
-#  "Resurrecting the silicon dead"
-#  Le Kali du 32-bits - Version 0.2 Alpha
+#  NecrOS Installer v1.0 — "Resurrecting the Silicon Dead"
+#  Le Kali du 32-bits — Ultra-light pentest OS on Alpine Linux
+#
+#  Usage:  sh necro_install.sh [--minimal|--full] [--no-gui] [--force]
 # ============================================================================
 
-set -e  # Exit on error
+set -e
 
-VERSION="0.2-alpha"
-LOG_FILE="/var/log/necros_install.log"
+# ---------------------------------------------------------------------------
+# Bootstrap: locate the shared library
+# ---------------------------------------------------------------------------
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LIB="${SCRIPT_DIR}/lib/necros-common.sh"
+if [ ! -f "$LIB" ]; then
+    # Fallback: already installed
+    LIB="/usr/local/necros/lib/necros-common.sh"
+fi
+[ -f "$LIB" ] || { echo "[✗] Cannot find necros-common.sh"; exit 1; }
+# shellcheck source=lib/necros-common.sh
+. "$LIB"
 
-# Couleurs pour le terminal
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+# ---------------------------------------------------------------------------
+# CLI flags
+# ---------------------------------------------------------------------------
+INSTALL_MODE="standard"  # minimal | standard | full
+INSTALL_GUI=1
+FORCE=0
 
-# ============================================================================
-# FONCTIONS UTILITAIRES
-# ============================================================================
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --minimal)  INSTALL_MODE="minimal" ;;
+        --full)     INSTALL_MODE="full" ;;
+        --no-gui)   INSTALL_GUI=0 ;;
+        --force)    FORCE=1 ;;
+        -h|--help)
+            cat <<EOF
+NecrOS Installer v${NECROS_VERSION}
 
-log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE"
-    printf "${GREEN}[+]${NC} %s\n" "$1"
-}
+Usage: sh necro_install.sh [OPTIONS]
 
-warn() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - WARNING: $1" >> "$LOG_FILE"
-    printf "${YELLOW}[!]${NC} %s\n" "$1"
-}
+Options:
+  --minimal     Core tools only, no GUI, no Python extras
+  --full        Everything including all toolboxes
+  --no-gui      Skip X11/i3wm installation
+  --force       Re-run all steps (ignore markers)
+  -h, --help    Show this help
 
-error() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - ERROR: $1" >> "$LOG_FILE"
-    printf "${RED}[✗]${NC} %s\n" "$1"
-    exit 1
-}
-
-banner() {
-    printf "${CYAN}"
-    cat << 'EOF'
-
-    ╔═══════════════════════════════════════════════════════════╗
-    ║                                                           ║
-    ║   💀 N E C R O S   I N S T A L L E R   💀                ║
-    ║                                                           ║
-    ║   "Le Kali du 32-bits - Ressusciter les morts"           ║
-    ║                                                           ║
-    ╚═══════════════════════════════════════════════════════════╝
-
+Minimum requirements:
+  RAM:  256 MB (512 MB recommended)
+  Disk: 500 MB (2 GB recommended for --full)
+  Base: Alpine Linux 3.18+
 EOF
-    printf "${NC}"
-}
-
-# ============================================================================
-# DÉTECTION SYSTÈME
-# ============================================================================
-
-detect_arch() {
-    ARCH=$(uname -m)
-    case "$ARCH" in
-        i686|i386|i486|i586)
-            ARCH_TYPE="x86"
-            ARCH_BITS="32"
-            log "Architecture détectée: x86 (32-bit) - Mode économique activé"
+            exit 0
             ;;
-        x86_64|amd64)
-            ARCH_TYPE="x86_64"
-            ARCH_BITS="64"
-            log "Architecture détectée: x86_64 (64-bit)"
-            ;;
-        aarch64|arm64)
-            ARCH_TYPE="aarch64"
-            ARCH_BITS="64"
-            log "Architecture détectée: ARM64 (64-bit)"
-            ;;
-        armv7l|armv6l)
-            ARCH_TYPE="arm"
-            ARCH_BITS="32"
-            log "Architecture détectée: ARM (32-bit) - Mode économique activé"
-            ;;
-        *)
-            error "Architecture non supportée: $ARCH"
-            ;;
+        *) warn "Option inconnue: $1" ;;
     esac
-}
+    shift
+done
 
-check_memory() {
-    TOTAL_MEM=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-    TOTAL_MEM_MB=$((TOTAL_MEM / 1024))
-    
-    if [ "$TOTAL_MEM_MB" -lt 256 ]; then
-        error "Mémoire insuffisante: ${TOTAL_MEM_MB}MB (minimum 256MB requis)"
-    elif [ "$TOTAL_MEM_MB" -lt 512 ]; then
-        warn "Mémoire faible: ${TOTAL_MEM_MB}MB - Mode ultra-léger recommandé"
-        LOW_MEM_MODE=1
-    else
-        log "Mémoire RAM: ${TOTAL_MEM_MB}MB"
-        LOW_MEM_MODE=0
+# Reset markers if --force
+[ "$FORCE" -eq 1 ] && rm -rf "$NECROS_MARKERS" 2>/dev/null
+
+# ---------------------------------------------------------------------------
+# Pre-flight checks
+# ---------------------------------------------------------------------------
+preflight() {
+    necros_banner
+    require_root
+    require_alpine
+    require_mem 192
+    require_disk 500
+
+    local _mem
+    _mem=$(get_mem_mb)
+
+    log "Architecture: ${NECROS_ARCH} (${NECROS_BITS}-bit)"
+    log "RAM: ${_mem}MB"
+    log "Disque libre: $(get_disk_free_mb /)MB"
+    log "Alpine: $(get_alpine_version)"
+    log "Mode: ${INSTALL_MODE} | GUI: ${INSTALL_GUI}"
+
+    # Auto-swap on low-memory systems
+    if [ "$_mem" -lt 512 ]; then
+        warn "RAM < 512MB — activation du swap automatique"
+        ensure_swap 256
+    fi
+
+    # Auto-downgrade to minimal on very constrained hardware
+    if [ "$_mem" -lt 384 ] && [ "$INSTALL_MODE" != "minimal" ]; then
+        warn "RAM < 384MB — basculement automatique en mode minimal"
+        INSTALL_MODE="minimal"
+        INSTALL_GUI=0
     fi
 }
 
-check_disk() {
-    DISK_FREE=$(df / | tail -1 | awk '{print $4}')
-    DISK_FREE_MB=$((DISK_FREE / 1024))
-    
-    if [ "$DISK_FREE_MB" -lt 500 ]; then
-        error "Espace disque insuffisant: ${DISK_FREE_MB}MB (minimum 500MB requis)"
-    else
-        log "Espace disque disponible: ${DISK_FREE_MB}MB"
-    fi
-}
-
-check_root() {
-    if [ "$(id -u)" -ne 0 ]; then
-        error "Ce script doit être exécuté en tant que root"
-    fi
-}
-
-# ============================================================================
-# INSTALLATION DES COMPOSANTS
-# ============================================================================
-
+# ---------------------------------------------------------------------------
+# Repository setup
+# ---------------------------------------------------------------------------
 setup_repositories() {
     log "Configuration des dépôts Alpine..."
-    
-    # Backup de l'original
-    cp /etc/apk/repositories /etc/apk/repositories.bak
-    
-    # Activer community et testing pour les outils de hacking
-    cat > /etc/apk/repositories << 'EOF'
-https://dl-cdn.alpinelinux.org/alpine/v3.20/main
-https://dl-cdn.alpinelinux.org/alpine/v3.20/community
+
+    local _ver
+    _ver=$(get_alpine_version)
+    [ "$_ver" = "unknown" ] && _ver="edge"
+
+    cp /etc/apk/repositories /etc/apk/repositories.necros-bak 2>/dev/null || true
+
+    cat > /etc/apk/repositories <<EOF
+https://dl-cdn.alpinelinux.org/alpine/v${_ver}/main
+https://dl-cdn.alpinelinux.org/alpine/v${_ver}/community
 @testing https://dl-cdn.alpinelinux.org/alpine/edge/testing
 EOF
-    
-    apk update
+
+    apk update >> "$NECROS_LOG" 2>&1
+    ok "Dépôts configurés (Alpine v${_ver})"
 }
 
+# ---------------------------------------------------------------------------
+# Core system packages
+# ---------------------------------------------------------------------------
 install_core() {
     log "Installation du noyau système..."
-    
-    # Outils de base
-    apk add --no-cache \
-        build-base \
-        git \
-        curl \
-        wget \
-        python3 \
-        py3-pip \
+
+    pkg_install \
+        build-base gcc musl-dev linux-headers \
+        git curl wget \
+        python3 py3-pip \
         doas \
-        htop \
-        neofetch \
-        tmux \
-        vim \
-        nano \
-        file \
-        tree \
-        jq \
-        openssh \
-        rsync
-    
-    # Configuration de doas (remplace sudo)
-    echo "permit persist :wheel" > /etc/doas.conf
-    chmod 600 /etc/doas.conf
-    
-    log "Noyau système installé"
-}
+        htop procps \
+        tmux screen \
+        vim nano \
+        file tree jq \
+        openssh-client rsync \
+        coreutils findutils grep sed gawk \
+        bash shadow \
+        lsblk util-linux pciutils usbutils \
+        ca-certificates openssl
 
-install_gui() {
-    log "Installation de l'interface graphique minimale..."
-    
-    # Setup X.org
-    setup-xorg-base
-    
-    # Gestionnaire de fenêtres et terminal
-    apk add --no-cache \
-        i3wm \
-        i3status \
-        i3lock \
-        dmenu \
-        rofi \
-        rxvt-unicode \
-        xorg-server \
-        xf86-input-evdev \
-        xf86-input-libinput \
-        xinit \
-        xrandr \
-        xset \
-        xsetroot \
-        feh \
-        terminus-font \
-        ttf-dejavu \
-        font-noto
-    
-    # Polices supplémentaires pour le terminal
-    apk add --no-cache \
-        font-terminus-nerd || warn "Nerd Fonts non disponibles"
-    
-    log "Interface graphique installée"
-}
-
-install_shell() {
-    log "Configuration du shell..."
-    
-    apk add --no-cache \
-        zsh \
-        zsh-vcs \
-        shadow
-    
-    # Installer Oh My Zsh pour root
-    if [ ! -d "/root/.oh-my-zsh" ]; then
-        sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended || warn "Oh My Zsh installation échouée"
+    # doas config (idempotent)
+    if [ ! -f /etc/doas.conf ] || ! grep -q "permit persist :wheel" /etc/doas.conf 2>/dev/null; then
+        echo "permit persist :wheel" > /etc/doas.conf
+        chmod 600 /etc/doas.conf
     fi
-    
-    # Changer le shell par défaut
-    sed -i 's|root:/bin/ash|root:/bin/zsh|' /etc/passwd
-    
-    log "Shell configuré"
+
+    ok "Noyau système installé"
 }
 
+# ---------------------------------------------------------------------------
+# Networking
+# ---------------------------------------------------------------------------
 install_networking() {
-    log "Installation des outils réseau de base..."
-    
-    apk add --no-cache \
-        nmap \
-        nmap-scripts \
+    log "Installation des outils réseau..."
+
+    pkg_install \
+        nmap nmap-scripts \
         netcat-openbsd \
         tcpdump \
-        wireshark \
-        tshark \
-        iptables \
-        ip6tables \
+        iptables ip6tables nftables \
         iproute2 \
-        bind-tools \
-        whois \
-        traceroute \
-        mtr \
-        net-tools \
-        ethtool \
+        bind-tools whois \
+        traceroute mtr \
+        net-tools ethtool \
         socat \
         hping3 \
-        masscan
-    
-    log "Outils réseau installés"
+        masscan \
+        arp-scan \
+        curl wget
+
+    # Wireshark/tshark only if enough RAM
+    if ! is_lowmem; then
+        pkg_install wireshark tshark
+    else
+        info "RAM faible — tshark uniquement"
+        pkg_install tshark
+    fi
+
+    ok "Outils réseau installés"
 }
 
+# ---------------------------------------------------------------------------
+# Python pentest libraries
+# ---------------------------------------------------------------------------
 install_python_tools() {
-    log "Installation des bibliothèques Python pour le hacking..."
-    
-    # Installer pip packages de sécurité
-    pip3 install --break-system-packages \
+    log "Installation des bibliothèques Python pentest..."
+
+    pip_install \
         scapy \
         requests \
         beautifulsoup4 \
         lxml \
-        pwntools \
-        impacket \
         paramiko \
         colorama \
-        tabulate 2>/dev/null || warn "Certains packages Python n'ont pas pu être installés"
-    
-    log "Bibliothèques Python installées"
+        tabulate \
+        rich \
+        pycryptodome \
+        netaddr
+
+    # Heavy tools only on 64-bit with sufficient RAM
+    if ! is_32bit && ! is_lowmem; then
+        pip_install pwntools impacket
+    elif ! is_32bit; then
+        pip_install impacket
+    else
+        info "32-bit: pwntools/impacket ignorés (incompatibles ou trop lourds)"
+    fi
+
+    ok "Bibliothèques Python installées"
 }
 
-# ============================================================================
-# CONFIGURATION VISUELLE
-# ============================================================================
+# ---------------------------------------------------------------------------
+# GUI: X11 + i3wm
+# ---------------------------------------------------------------------------
+install_gui() {
+    [ "$INSTALL_GUI" -eq 0 ] && { info "GUI désactivée (--no-gui)"; return 0; }
 
+    log "Installation de l'interface graphique..."
+
+    # X.org base
+    pkg_install \
+        xorg-server xinit xrandr xset xsetroot xrdb \
+        xf86-input-evdev xf86-input-libinput
+
+    # Video drivers — try the generic VESA first, then fbdev (works on everything 32-bit)
+    pkg_install xf86-video-vesa xf86-video-fbdev
+    # Try modesetting on newer kernels
+    pkg_install xf86-video-modesetting 2>/dev/null || true
+
+    # Window manager + launcher
+    pkg_install i3wm i3status i3lock dmenu rofi
+
+    # Terminal — alacritty on 64-bit, rxvt-unicode on 32-bit (lighter)
+    if is_32bit; then
+        pkg_install rxvt-unicode
+        NECROS_TERM="urxvt"
+    else
+        pkg_install rxvt-unicode
+        NECROS_TERM="urxvt"
+    fi
+    export NECROS_TERM
+
+    # Fonts
+    pkg_install \
+        terminus-font ttf-dejavu font-noto-emoji \
+        font-terminus-nerd
+
+    # Wallpaper + screenshot
+    pkg_install feh scrot
+
+    ok "Interface graphique installée (i3wm + ${NECROS_TERM})"
+}
+
+# ---------------------------------------------------------------------------
+# Shell: Zsh + Oh My Zsh + custom prompt
+# ---------------------------------------------------------------------------
+install_shell() {
+    log "Configuration du shell..."
+
+    pkg_install zsh zsh-vcs
+
+    # Oh My Zsh — non-interactive install
+    if [ ! -d /root/.oh-my-zsh ]; then
+        sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" \
+            --unattended >> "$NECROS_LOG" 2>&1 || warn "Oh My Zsh non installé"
+    fi
+
+    # Set zsh as default shell for root
+    if command -v chsh >/dev/null 2>&1; then
+        chsh -s /bin/zsh root 2>/dev/null || \
+            sed -i 's|root:/bin/ash|root:/bin/zsh|' /etc/passwd 2>/dev/null
+    fi
+
+    ok "Shell configuré (zsh)"
+}
+
+# ---------------------------------------------------------------------------
+# Deploy NecrOS core files
+# ---------------------------------------------------------------------------
+deploy_necros_files() {
+    log "Déploiement des fichiers NecrOS..."
+
+    local _dest="/usr/local/necros"
+    mkdir -p "$_dest"/{lib,core,toolbox,wordlists}
+    mkdir -p /usr/local/bin
+
+    # Library
+    cp "$SCRIPT_DIR/lib/necros-common.sh" "$_dest/lib/"
+
+    # VERSION
+    cp "$SCRIPT_DIR/VERSION" "$_dest/"
+
+    # Core tools
+    for f in "$SCRIPT_DIR"/core/*.sh; do
+        [ -f "$f" ] || continue
+        cp "$f" "$_dest/core/"
+        chmod +x "$_dest/core/$(basename "$f")"
+    done
+
+    # Toolbox installers
+    for f in "$SCRIPT_DIR"/toolbox/*.sh; do
+        [ -f "$f" ] || continue
+        cp "$f" "$_dest/toolbox/"
+        chmod +x "$_dest/toolbox/$(basename "$f")"
+    done
+
+    # Symlink binaries
+    ln -sf "$_dest/core/vanish.sh"       /usr/local/bin/necros-vanish
+    ln -sf "$_dest/core/payload.sh"      /usr/local/bin/necros-payload
+    ln -sf "$_dest/core/recon.sh"        /usr/local/bin/necros-recon
+    ln -sf "$_dest/core/sysinfo.sh"      /usr/local/bin/necros-sysinfo
+    ln -sf "$_dest/core/update.sh"       /usr/local/bin/necros-update
+
+    ok "Fichiers NecrOS déployés dans $_dest"
+}
+
+# ---------------------------------------------------------------------------
+# Toolbox manager (improved)
+# ---------------------------------------------------------------------------
+create_toolbox_manager() {
+    log "Création du gestionnaire de toolbox..."
+
+    cat > /usr/local/bin/necros-toolbox << 'TOOLBOX'
+#!/bin/sh
+# NecrOS Toolbox Manager v1.0
+
+_NECROS_DIR="/usr/local/necros"
+. "$_NECROS_DIR/lib/necros-common.sh" 2>/dev/null || true
+
+show_menu() {
+    necros_banner
+    printf '%s' "$CYAN"
+    cat <<EOF
+  ╔═══════════════════════════════════════╗
+  ║         TOOLBOX  MANAGER             ║
+  ╠═══════════════════════════════════════╣
+  ║  [1]  📡  WiFi / Radio Hacking       ║
+  ║  [2]  🌐  Web Pentest                ║
+  ║  [3]  🔬  Reverse Engineering        ║
+  ║  [4]  🛡️   Blue Team / Défense        ║
+  ║  [5]  🔍  OSINT & Recon              ║
+  ║  [6]  🔐  Crypto & Stego             ║
+  ║  [7]  📦  Installer TOUT             ║
+  ║  [8]  📋  Statut des toolboxes       ║
+  ║  [0]  Quitter                        ║
+  ╚═══════════════════════════════════════╝
+EOF
+    printf '%s' "$NC"
+}
+
+show_status() {
+    echo ""
+    for _tb in wifi web reverse blue osint crypto; do
+        if [ -f "/var/lib/necros/markers/toolbox_${_tb}" ]; then
+            printf '  %s[✓]%s %s\n' "$GREEN" "$NC" "$_tb"
+        else
+            printf '  %s[ ]%s %s\n' "$RED" "$NC" "$_tb"
+        fi
+    done
+    echo ""
+}
+
+_run() {
+    local _script="$_NECROS_DIR/toolbox/install_${1}.sh"
+    if [ -f "$_script" ]; then
+        sh "$_script"
+    else
+        echo "${RED}[✗] Toolbox '$1' non trouvée${NC}"
+    fi
+}
+
+# Direct argument mode
+case "$1" in
+    wifi|1)     _run wifi ;;
+    web|2)      _run web ;;
+    reverse|re|3) _run reverse ;;
+    blue|4)     _run blue ;;
+    osint|5)    _run osint ;;
+    crypto|6)   _run crypto ;;
+    all|7)
+        for _tb in wifi web reverse blue osint crypto; do
+            _run "$_tb"
+        done
+        ;;
+    status|8)   show_status ;;
+    -h|--help)
+        echo "Usage: necros-toolbox [wifi|web|reverse|blue|osint|crypto|all|status]"
+        exit 0
+        ;;
+    "")
+        # Interactive mode
+        while true; do
+            show_menu
+            printf '  > '
+            read -r _choice
+            case $_choice in
+                1) _run wifi ;;
+                2) _run web ;;
+                3) _run reverse ;;
+                4) _run blue ;;
+                5) _run osint ;;
+                6) _run crypto ;;
+                7) for _tb in wifi web reverse blue osint crypto; do _run "$_tb"; done ;;
+                8) show_status ;;
+                0|q) echo "💀 À bientôt, Nécromancien."; exit 0 ;;
+                *) echo "Option invalide." ;;
+            esac
+            printf '\nAppuyez sur Entrée...'; read -r _
+        done
+        ;;
+    *)
+        echo "Usage: necros-toolbox [wifi|web|reverse|blue|osint|crypto|all|status]"
+        exit 1
+        ;;
+esac
+TOOLBOX
+    chmod +x /usr/local/bin/necros-toolbox
+
+    ok "Gestionnaire de toolbox créé"
+}
+
+# ---------------------------------------------------------------------------
+# Theme configuration
+# ---------------------------------------------------------------------------
 configure_theme() {
+    [ "$INSTALL_GUI" -eq 0 ] && return 0
+
     log "Application du thème NecrOS..."
-    
-    # Configuration Xresources (urxvt)
-    cat > /root/.Xresources << 'EOF'
-! ============================================
-!  NecrOS Terminal Theme - "The Necromancer"
-! ============================================
 
-URxvt.scrollBar: false
-URxvt.scrollBar_right: false
-URxvt.font: xft:Terminus:size=12:antialias=true
-URxvt.boldFont: xft:Terminus:bold:size=12:antialias=true
-URxvt.letterSpace: 0
-URxvt.lineSpace: 0
-URxvt.cursorBlink: true
-URxvt.cursorUnderline: false
-URxvt.saveline: 10000
-URxvt.urgentOnBell: true
+    # --- Xresources (urxvt) ---
+    cat > /root/.Xresources << 'XRES'
+! NecrOS Terminal Theme — "The Necromancer"
+URxvt.scrollBar:       false
+URxvt.font:            xft:Terminus:size=12:antialias=true
+URxvt.boldFont:        xft:Terminus:bold:size=12:antialias=true
+URxvt.cursorBlink:     true
+URxvt.saveline:        10000
+URxvt.urgentOnBell:    true
+URxvt.perl-ext-common: default,matcher
+URxvt.url-launcher:    /usr/bin/xdg-open
+URxvt.matcher.button:  1
 
-! Fond noir profond avec texte vert néon
-URxvt*background: #0a0a0a
-URxvt*foreground: #00ff41
+! Colour scheme: Necromancer (green on black)
+URxvt*background:  #0a0a0a
+URxvt*foreground:  #00ff41
 URxvt*cursorColor: #00ff41
-URxvt*cursorColor2: #0a0a0a
-
-! Palette de couleurs NecrOS
-! Noirs et gris
 URxvt*color0:  #0a0a0a
 URxvt*color8:  #3d3d3d
-
-! Rouges (erreurs, warnings)
 URxvt*color1:  #ff5c57
 URxvt*color9:  #ff6e67
-
-! Verts (succès, prompt)
 URxvt*color2:  #00ff41
 URxvt*color10: #5af78e
-
-! Jaunes (warnings)
 URxvt*color3:  #f3f99d
 URxvt*color11: #f4f99d
-
-! Bleus (info)
 URxvt*color4:  #57c7ff
 URxvt*color12: #57c7ff
-
-! Magentas (spécial)
 URxvt*color5:  #ff6ac1
 URxvt*color13: #ff6ac1
-
-! Cyans (liens, paths)
 URxvt*color6:  #9aedfe
 URxvt*color14: #9aedfe
-
-! Blancs
 URxvt*color7:  #c7c7c7
 URxvt*color15: #ffffff
+XRES
 
-! Extensions
-URxvt.perl-ext-common: default,matcher
-URxvt.url-launcher: /usr/bin/xdg-open
-URxvt.matcher.button: 1
-EOF
-
-    # Configuration i3
+    # --- i3 config ---
     mkdir -p /root/.config/i3
-    cat > /root/.config/i3/config << 'EOF'
-# ============================================
-#  NecrOS i3 Configuration
-# ============================================
-
-# Modifier = Super (touche Windows)
+    cat > /root/.config/i3/config << 'I3CONF'
+# NecrOS i3 Configuration v1.0
 set $mod Mod4
-
-# Police
 font pango:Terminus 10
 
-# Couleurs NecrOS
-set $bg-color            #0a0a0a
-set $inactive-bg-color   #1a1a1a
-set $text-color          #00ff41
-set $inactive-text-color #666666
-set $urgent-bg-color     #ff5c57
+# Colours
+set $bg      #0a0a0a
+set $ibg     #1a1a1a
+set $fg      #00ff41
+set $ifg     #666666
+set $urgent  #ff5c57
 
-# Bordures de fenêtres
-client.focused          $bg-color $bg-color $text-color #00ff41
-client.unfocused        $inactive-bg-color $inactive-bg-color $inactive-text-color #1a1a1a
-client.focused_inactive $inactive-bg-color $inactive-bg-color $inactive-text-color #1a1a1a
-client.urgent           $urgent-bg-color $urgent-bg-color $text-color #ff5c57
+client.focused          $bg  $bg  $fg  #00ff41
+client.unfocused        $ibg $ibg $ifg #1a1a1a
+client.focused_inactive $ibg $ibg $ifg #1a1a1a
+client.urgent           $urgent $urgent $fg #ff5c57
 
-# Pas de bordures de titre
 default_border pixel 2
 default_floating_border pixel 2
-
-# Gaps (si supporté)
-gaps inner 5
+gaps inner 4
 gaps outer 2
 
-# Terminal
+# Keybindings — essentials
 bindsym $mod+Return exec urxvt
-
-# Fermer une fenêtre
 bindsym $mod+Shift+q kill
-
-# Lanceur d'applications
 bindsym $mod+d exec --no-startup-id rofi -show run -theme /root/.config/rofi/necros.rasi
 bindsym $mod+space exec --no-startup-id dmenu_run -nb '#0a0a0a' -nf '#00ff41' -sb '#00ff41' -sf '#0a0a0a'
 
-# Navigation
+# Navigation (vim-style + arrows)
 bindsym $mod+h focus left
 bindsym $mod+j focus down
 bindsym $mod+k focus up
 bindsym $mod+l focus right
-
 bindsym $mod+Left focus left
 bindsym $mod+Down focus down
 bindsym $mod+Up focus up
 bindsym $mod+Right focus right
 
-# Déplacer les fenêtres
+# Move windows
 bindsym $mod+Shift+h move left
 bindsym $mod+Shift+j move down
 bindsym $mod+Shift+k move up
 bindsym $mod+Shift+l move right
-
 bindsym $mod+Shift+Left move left
 bindsym $mod+Shift+Down move down
 bindsym $mod+Shift+Up move up
 bindsym $mod+Shift+Right move right
 
-# Split horizontal/vertical
+# Layout
 bindsym $mod+b split h
 bindsym $mod+v split v
-
-# Fullscreen
 bindsym $mod+f fullscreen toggle
-
-# Layouts
 bindsym $mod+s layout stacking
 bindsym $mod+w layout tabbed
 bindsym $mod+e layout toggle split
-
-# Floating
 bindsym $mod+Shift+space floating toggle
-bindsym $mod+Button1 floating toggle
 
 # Workspaces
-set $ws1 "1:💀"
-set $ws2 "2:🔍"
-set $ws3 "3:🛡️"
-set $ws4 "4:⚔️"
-set $ws5 "5:🌐"
+set $ws1 "1:term"
+set $ws2 "2:recon"
+set $ws3 "3:exploit"
+set $ws4 "4:defense"
+set $ws5 "5:web"
 set $ws6 "6"
 set $ws7 "7"
 set $ws8 "8"
@@ -456,41 +555,30 @@ bindsym $mod+Shift+8 move container to workspace $ws8
 bindsym $mod+Shift+9 move container to workspace $ws9
 bindsym $mod+Shift+0 move container to workspace $ws10
 
-# Reload/Restart
+# System
 bindsym $mod+Shift+c reload
 bindsym $mod+Shift+r restart
-
-# Exit i3
 bindsym $mod+Shift+e exec "i3-nagbar -t warning -m 'Quitter NecrOS?' -B 'Oui' 'i3-msg exit'"
-
-# Lock screen
 bindsym $mod+Escape exec i3lock -c 0a0a0a
-
-# Screenshots
 bindsym Print exec scrot ~/screenshots/%Y-%m-%d_%H-%M-%S.png
 
-# Volume (si audio)
+# Volume
 bindsym XF86AudioRaiseVolume exec amixer set Master 5%+
 bindsym XF86AudioLowerVolume exec amixer set Master 5%-
 bindsym XF86AudioMute exec amixer set Master toggle
 
-# Resize mode
+# Resize
 mode "resize" {
     bindsym h resize shrink width 10 px or 10 ppt
     bindsym j resize grow height 10 px or 10 ppt
     bindsym k resize shrink height 10 px or 10 ppt
     bindsym l resize grow width 10 px or 10 ppt
-    bindsym Left resize shrink width 10 px or 10 ppt
-    bindsym Down resize grow height 10 px or 10 ppt
-    bindsym Up resize shrink height 10 px or 10 ppt
-    bindsym Right resize grow width 10 px or 10 ppt
     bindsym Return mode "default"
     bindsym Escape mode "default"
-    bindsym $mod+r mode "default"
 }
 bindsym $mod+r mode "resize"
 
-# Bar
+# Status bar
 bar {
     status_command i3status -c /root/.config/i3/i3status.conf
     position top
@@ -498,7 +586,6 @@ bar {
         background #0a0a0a
         statusline #00ff41
         separator  #3d3d3d
-        
         focused_workspace  #00ff41 #00ff41 #0a0a0a
         active_workspace   #1a1a1a #1a1a1a #00ff41
         inactive_workspace #0a0a0a #0a0a0a #666666
@@ -509,10 +596,10 @@ bar {
 # Autostart
 exec --no-startup-id xrdb -merge ~/.Xresources
 exec --no-startup-id xsetroot -solid '#0a0a0a'
-EOF
+I3CONF
 
-    # Configuration i3status
-    cat > /root/.config/i3/i3status.conf << 'EOF'
+    # --- i3status ---
+    cat > /root/.config/i3/i3status.conf << 'I3STAT'
 general {
     colors = true
     color_good = "#00ff41"
@@ -520,7 +607,6 @@ general {
     color_bad = "#ff5c57"
     interval = 5
 }
-
 order += "wireless _first_"
 order += "ethernet _first_"
 order += "disk /"
@@ -529,36 +615,31 @@ order += "memory"
 order += "tztime local"
 
 wireless _first_ {
-    format_up = "📡 %essid %quality"
-    format_down = "📡 down"
+    format_up = "W:%essid %quality"
+    format_down = "W:down"
 }
-
 ethernet _first_ {
-    format_up = "🔌 %ip"
-    format_down = "🔌 down"
+    format_up = "E:%ip"
+    format_down = "E:down"
 }
-
 disk "/" {
-    format = "💾 %avail"
+    format = "D:%avail"
 }
-
 cpu_usage {
-    format = "🔥 %usage"
+    format = "C:%usage"
 }
-
 memory {
-    format = "🧠 %used"
+    format = "M:%used"
     threshold_degraded = "10%"
 }
-
 tztime local {
-    format = "📅 %Y-%m-%d %H:%M"
+    format = "%Y-%m-%d %H:%M"
 }
-EOF
+I3STAT
 
-    # Configuration rofi
+    # --- Rofi ---
     mkdir -p /root/.config/rofi
-    cat > /root/.config/rofi/necros.rasi << 'EOF'
+    cat > /root/.config/rofi/necros.rasi << 'ROFI'
 * {
     background: #0a0a0a;
     foreground: #00ff41;
@@ -566,316 +647,260 @@ EOF
     selected-background: #00ff41;
     selected-foreground: #0a0a0a;
 }
-
 window {
     background-color: @background;
     border: 2px;
     border-color: @border-color;
     padding: 10px;
 }
+mainbox { children: [inputbar, listview]; }
+inputbar { children: [prompt, entry]; background-color: @background; }
+prompt { background-color: @background; text-color: @foreground; padding: 5px; }
+entry { background-color: @background; text-color: @foreground; padding: 5px; }
+listview { background-color: @background; columns: 1; }
+element { background-color: @background; text-color: @foreground; padding: 5px; }
+element selected { background-color: @selected-background; text-color: @selected-foreground; }
+ROFI
 
-mainbox {
-    children: [inputbar, listview];
-}
-
-inputbar {
-    children: [prompt, entry];
-    background-color: @background;
-}
-
-prompt {
-    background-color: @background;
-    text-color: @foreground;
-    padding: 5px;
-}
-
-entry {
-    background-color: @background;
-    text-color: @foreground;
-    padding: 5px;
-}
-
-listview {
-    background-color: @background;
-    columns: 1;
-}
-
-element {
-    background-color: @background;
-    text-color: @foreground;
-    padding: 5px;
-}
-
-element selected {
-    background-color: @selected-background;
-    text-color: @selected-foreground;
-}
-EOF
-
-    # xinitrc
-    cat > /root/.xinitrc << 'EOF'
+    # --- xinitrc ---
+    cat > /root/.xinitrc << 'XINIT'
 #!/bin/sh
-# NecrOS X11 Startup
-
-# Charger les ressources
 xrdb -merge ~/.Xresources
-
-# Fond noir
 xsetroot -solid '#0a0a0a'
-
-# Désactiver le screensaver
 xset s off
 xset -dpms
-
-# Démarrer i3
 exec i3
-EOF
+XINIT
     chmod +x /root/.xinitrc
 
-    log "Thème NecrOS appliqué"
+    ok "Thème NecrOS appliqué"
 }
 
+# ---------------------------------------------------------------------------
+# Zsh configuration
+# ---------------------------------------------------------------------------
 configure_zshrc() {
-    log "Configuration du prompt ZSH..."
-    
-    cat > /root/.zshrc << 'EOF'
-# ============================================
-#  NecrOS ZSH Configuration
-# ============================================
+    log "Configuration zshrc..."
+
+    cat > /root/.zshrc << 'ZSHRC'
+# NecrOS ZSH Configuration v1.0
 
 # Oh My Zsh
 export ZSH="$HOME/.oh-my-zsh"
 ZSH_THEME="robbyrussell"
+plugins=(git sudo history colored-man-pages)
+[ -f "$ZSH/oh-my-zsh.sh" ] && source "$ZSH/oh-my-zsh.sh"
 
-plugins=(
-    git
-    sudo
-    docker
-    history
-    colored-man-pages
-)
-
-source $ZSH/oh-my-zsh.sh 2>/dev/null || true
-
-# Prompt personnalisé NecrOS (fallback si pas oh-my-zsh)
+# Fallback prompt when oh-my-zsh is not present
 if [ ! -d "$ZSH" ]; then
     autoload -U colors && colors
-    PROMPT='%{$fg[green]%}💀 %{$fg[cyan]%}%n%{$reset_color%}@%{$fg[red]%}necros%{$reset_color%}:%{$fg[yellow]%}%~%{$reset_color%}
-%{$fg[green]%}❯%{$reset_color%} '
+    PROMPT='%{$fg[green]%}[necros]%{$reset_color%} %{$fg[cyan]%}%n%{$reset_color%}:%{$fg[yellow]%}%~%{$reset_color%}
+%{$fg[green]%}> %{$reset_color%}'
 fi
 
-# Aliases NecrOS
-alias ll='ls -la --color=auto'
+# --- Aliases: System ---
+alias ll='ls -lah --color=auto'
 alias la='ls -A --color=auto'
-alias l='ls -CF --color=auto'
 alias ..='cd ..'
 alias ...='cd ../..'
 
-# Aliases Hacking
+# --- Aliases: Networking ---
 alias scan='nmap -sV -sC'
-alias fastscan='nmap -F'
-alias fullscan='nmap -p- -sV -sC'
+alias fastscan='nmap -F -T4'
+alias fullscan='nmap -p- -sV -sC -T4'
+alias pingsweep='nmap -sn'
 alias listen='nc -lvnp'
-alias serve='python3 -m http.server'
+alias serve='python3 -m http.server 8888'
 alias sniff='tcpdump -i any -w'
 alias myip='curl -s ifconfig.me'
-alias localip='ip addr show | grep "inet " | grep -v 127.0.0.1'
+alias localip='ip -4 addr show | grep -oP "(?<=inet )[\d.]+" | grep -v 127.0.0.1'
+alias ports='ss -tlnp'
 
-# Variables d'environnement
+# --- Aliases: NecrOS ---
+alias vanish='doas necros-vanish'
+alias payload='necros-payload'
+alias recon='necros-recon'
+alias toolbox='doas necros-toolbox'
+alias sysinfo='necros-sysinfo'
+
+# Environment
 export EDITOR=vim
 export VISUAL=vim
 export PAGER=less
 export TERM=xterm-256color
+export NECROS_VERSION="$(cat /usr/local/necros/VERSION 2>/dev/null || echo '1.0.0')"
 
-# Historique
-HISTSIZE=10000
-SAVEHIST=10000
+# History
+HISTSIZE=50000
+SAVEHIST=50000
 HISTFILE=~/.zsh_history
+setopt HIST_IGNORE_DUPS HIST_IGNORE_SPACE SHARE_HISTORY
+setopt AUTO_CD CORRECT EXTENDED_GLOB
 
-# Options ZSH
-setopt HIST_IGNORE_DUPS
-setopt HIST_IGNORE_SPACE
-setopt SHARE_HISTORY
-setopt AUTO_CD
-setopt CORRECT
+# Wordlists shortcut
+export WORDLISTS="/usr/share/wordlists"
 
-# Banner au démarrage
-echo ""
-echo "  💀 NecrOS v${NECROS_VERSION:-0.2} - \"Resurrecting the silicon dead\""
-echo "  Architecture: $(uname -m) | Kernel: $(uname -r)"
-echo ""
-EOF
+# Banner
+printf '\n  \033[0;32m[necros]\033[0m v%s — %s (%s-bit) — %s MB RAM\n\n' \
+    "$NECROS_VERSION" "$(uname -m)" \
+    "$(getconf LONG_BIT 2>/dev/null || echo '?')" \
+    "$(awk '/MemTotal/{printf "%d",$2/1024}' /proc/meminfo)"
+ZSHRC
 
-    log "Configuration ZSH terminée"
+    ok "zshrc configuré"
 }
 
-# ============================================================================
-# CRÉATION DES SCRIPTS DE TOOLBOX
-# ============================================================================
+# ---------------------------------------------------------------------------
+# Boot splash (OpenRC service)
+# ---------------------------------------------------------------------------
+install_splash() {
+    log "Installation du splash de boot..."
 
-create_toolbox_scripts() {
-    log "Création des scripts de toolbox..."
-    
-    mkdir -p /usr/local/necros/toolbox
-    
-    # Créer le wrapper principal
-    cat > /usr/local/bin/necros-toolbox << 'EOF'
+    cp "$SCRIPT_DIR/core/splash.sh" /etc/init.d/necros-splash 2>/dev/null || \
+        cp /usr/local/necros/core/splash.sh /etc/init.d/necros-splash 2>/dev/null || {
+            warn "splash.sh non trouvé, skip"
+            return 0
+        }
+    chmod +x /etc/init.d/necros-splash
+    rc-update add necros-splash default 2>/dev/null || true
+
+    ok "Splash de boot installé"
+}
+
+# ---------------------------------------------------------------------------
+# Welcome message (TTY login)
+# ---------------------------------------------------------------------------
+create_welcome() {
+    cat > /etc/profile.d/necros-welcome.sh << 'WELCOME'
 #!/bin/sh
-# NecrOS Toolbox Manager
-
-show_menu() {
-    echo ""
-    echo "  💀 NecrOS Toolbox Manager"
-    echo "  ========================="
-    echo ""
-    echo "  [1] 📡 Radio/WiFi Hacking"
-    echo "  [2] 🌐 Web Pentest"
-    echo "  [3] 🔬 Reverse Engineering"
-    echo "  [4] 🛡️  Blue Team / Défense"
-    echo "  [5] 📦 Installer tout"
-    echo "  [0] Quitter"
-    echo ""
-    printf "  Choix: "
-}
-
-case "$1" in
-    wifi|1)
-        /usr/local/necros/toolbox/install_wifi.sh
-        ;;
-    web|2)
-        /usr/local/necros/toolbox/install_web.sh
-        ;;
-    reverse|re|3)
-        /usr/local/necros/toolbox/install_reverse.sh
-        ;;
-    blue|4)
-        /usr/local/necros/toolbox/install_blue.sh
-        ;;
-    all|5)
-        /usr/local/necros/toolbox/install_wifi.sh
-        /usr/local/necros/toolbox/install_web.sh
-        /usr/local/necros/toolbox/install_reverse.sh
-        /usr/local/necros/toolbox/install_blue.sh
-        ;;
-    *)
-        show_menu
-        read choice
-        case $choice in
-            1) exec $0 wifi ;;
-            2) exec $0 web ;;
-            3) exec $0 reverse ;;
-            4) exec $0 blue ;;
-            5) exec $0 all ;;
-            0) exit 0 ;;
-            *) echo "Option invalide"; exit 1 ;;
-        esac
-        ;;
-esac
-EOF
-    chmod +x /usr/local/bin/necros-toolbox
-    
-    log "Scripts de toolbox créés"
-}
-
-# ============================================================================
-# FINALISATION
-# ============================================================================
-
-create_welcome_script() {
-    cat > /etc/profile.d/necros-welcome.sh << 'EOF'
-#!/bin/sh
-# NecrOS Welcome Message
-
 if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then
     clear
-    cat << 'BANNER'
-
-    ███╗   ██╗███████╗ ██████╗██████╗  ██████╗ ███████╗
-    ████╗  ██║██╔════╝██╔════╝██╔══██╗██╔═══██╗██╔════╝
-    ██╔██╗ ██║█████╗  ██║     ██████╔╝██║   ██║███████╗
-    ██║╚██╗██║██╔══╝  ██║     ██╔══██╗██║   ██║╚════██║
-    ██║ ╚████║███████╗╚██████╗██║  ██║╚██████╔╝███████║
-    ╚═╝  ╚═══╝╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝
-    
-    "Resurrecting the silicon dead"
-    
-    💀 Commandes rapides:
-       startx          - Lancer l'interface graphique
-       necros-toolbox  - Installer des outils supplémentaires
-       neofetch        - Informations système
-    
-BANNER
+    . /usr/local/necros/lib/necros-common.sh 2>/dev/null
+    necros_banner 2>/dev/null || cat <<'B'
+    _   _           ___  ___
+   | \ | |         / _ \/ __|
+   |  \| | ___ ___| | | \__ \
+   | |\  |/ -_) __| |_| |__) |
+   |_| \_|\___|\___|___/|___/
+B
+    echo "  Commandes: startx | necros-toolbox | necros-sysinfo"
     echo ""
 fi
-EOF
+WELCOME
     chmod +x /etc/profile.d/necros-welcome.sh
 }
 
+# ---------------------------------------------------------------------------
+# Wordlists (minimal set, disk-conscious)
+# ---------------------------------------------------------------------------
+install_wordlists() {
+    log "Installation des wordlists de base..."
+
+    local _wl="/usr/share/wordlists"
+    mkdir -p "$_wl"
+
+    # SecLists — only the essentials (not the full 1GB+ repo)
+    if [ ! -f "$_wl/rockyou.txt.gz" ] && [ ! -f "$_wl/rockyou.txt" ]; then
+        info "Téléchargement de rockyou.txt.gz..."
+        wget -q "https://github.com/brannondorsey/naive-hashcat/releases/download/data/rockyou.txt" \
+            -O "$_wl/rockyou.txt" 2>/dev/null && \
+            gzip "$_wl/rockyou.txt" 2>/dev/null || \
+            warn "rockyou.txt non téléchargé"
+    fi
+
+    # Quick small wordlists
+    if [ ! -d "$_wl/dirb" ]; then
+        mkdir -p "$_wl/dirb"
+        wget -q "https://raw.githubusercontent.com/v0re/dirb/master/wordlists/common.txt" \
+            -O "$_wl/dirb/common.txt" 2>/dev/null || warn "dirb/common.txt non téléchargé"
+    fi
+
+    ok "Wordlists installées dans $_wl"
+}
+
+# ---------------------------------------------------------------------------
+# Full mode: install all toolboxes
+# ---------------------------------------------------------------------------
+install_all_toolboxes() {
+    [ "$INSTALL_MODE" != "full" ] && return 0
+
+    log "Mode full: installation de toutes les toolboxes..."
+    for _tb in wifi web reverse blue osint crypto; do
+        local _script="/usr/local/necros/toolbox/install_${_tb}.sh"
+        if [ -f "$_script" ]; then
+            sh "$_script" || warn "Toolbox $_tb: erreurs rencontrées"
+        fi
+    done
+}
+
+# ---------------------------------------------------------------------------
+# Cleanup
+# ---------------------------------------------------------------------------
 cleanup() {
     log "Nettoyage..."
     apk cache clean 2>/dev/null || true
-    rm -rf /tmp/* 2>/dev/null || true
+    rm -rf /tmp/necros-* 2>/dev/null || true
+    ok "Nettoyage terminé"
+}
+
+# ---------------------------------------------------------------------------
+# Final summary
+# ---------------------------------------------------------------------------
+finish() {
+    printf '\n%s' "$GREEN"
+    cat << 'FIN'
+    ╔═══════════════════════════════════════════════════════════╗
+    ║                                                           ║
+    ║   NECROS v1.0 — INSTALLATION TERMINÉE                    ║
+    ║                                                           ║
+    ║   Commandes:                                              ║
+    ║     startx              Lancer l'interface graphique      ║
+    ║     necros-toolbox      Installer des outils              ║
+    ║     necros-recon        Reconnaissance automatisée        ║
+    ║     necros-payload      Générateur de payloads            ║
+    ║     necros-vanish       Effacer les traces                ║
+    ║     necros-sysinfo      Informations système              ║
+    ║     necros-update       Mettre à jour NecrOS              ║
+    ║                                                           ║
+    ║   i3 raccourcis:                                          ║
+    ║     Super+Enter         Terminal                          ║
+    ║     Super+D             Menu applications                 ║
+    ║     Super+Shift+Q       Fermer fenêtre                    ║
+    ║                                                           ║
+    ║   Bienvenue dans l'abysse, Nécromancien.                  ║
+    ║                                                           ║
+    ╚═══════════════════════════════════════════════════════════╝
+FIN
+    printf '%s\n' "$NC"
 }
 
 # ============================================================================
 # MAIN
 # ============================================================================
-
 main() {
-    banner
-    
-    # Vérifications
-    check_root
-    detect_arch
-    check_memory
-    check_disk
-    
-    log "Début de l'installation NecrOS v${VERSION}"
-    
-    # Installation
-    setup_repositories
-    install_core
-    install_gui
-    install_shell
-    install_networking
-    install_python_tools
-    
-    # Configuration
-    configure_theme
-    configure_zshrc
-    create_toolbox_scripts
-    create_welcome_script
-    
-    # Finalisation
+    preflight
+
+    run_once "repositories"     setup_repositories
+    run_once "core_packages"    install_core
+    run_once "networking"       install_networking
+    run_once "python_tools"     install_python_tools
+    run_once "gui"              install_gui
+    run_once "shell"            install_shell
+    run_once "deploy_files"     deploy_necros_files
+    run_once "toolbox_manager"  create_toolbox_manager
+    run_once "theme"            configure_theme
+    run_once "zshrc"            configure_zshrc
+    run_once "splash"           install_splash
+    run_once "welcome"          create_welcome
+    run_once "wordlists"        install_wordlists
+
+    # Full mode installs all toolboxes
+    install_all_toolboxes
+
     cleanup
-    
-    # Message de fin
-    printf "${GREEN}"
-    cat << 'EOF'
+    finish
 
-    ╔═══════════════════════════════════════════════════════════╗
-    ║                                                           ║
-    ║   💀 INSTALLATION TERMINÉE !                             ║
-    ║                                                           ║
-    ║   Commandes:                                              ║
-    ║   • startx              - Lancer l'interface              ║
-    ║   • necros-toolbox      - Ajouter des outils              ║
-    ║                                                           ║
-    ║   Raccourcis i3:                                          ║
-    ║   • Super+Enter         - Terminal                        ║
-    ║   • Super+D             - Menu applications               ║
-    ║   • Super+Shift+Q       - Fermer fenêtre                  ║
-    ║   • Super+1-9           - Workspaces                      ║
-    ║                                                           ║
-    ║   Bienvenue dans l'abysse, Necromancien.                  ║
-    ║                                                           ║
-    ╚═══════════════════════════════════════════════════════════╝
-
-EOF
-    printf "${NC}"
-    
-    log "Installation NecrOS v${VERSION} terminée avec succès"
+    log "Installation NecrOS v${NECROS_VERSION} terminée — mode: ${INSTALL_MODE}"
 }
 
-# Exécution
 main "$@"
