@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="necroslogo.png" alt="NecrOS Logo" width="1000"/>
+  <img src="necroslogo2.png" alt="NecrOS Logo" width="1000"/>
 </p>
 
 # NecrOS v1.0
