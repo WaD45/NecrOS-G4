@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>necros-g4 — Resurrecting the Silicon Dead</title>
+<meta name="description" content="necros-g4, port PowerBook G4 de NecrOS. Pentest léger, ambiance terminale, base APK/OpenRC, design inspiré des PowerBook G4.">
+<meta property="og:title" content="necros-g4 — PowerBook G4 Edition">
+<meta property="og:description" content="Le port NecrOS pensé pour PowerBook G4, entre aluminium Apple et terminal de terrain.">
+<meta property="og:image" content="necros-powerbook-g4.png">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --alloy: #d8dce1;
+  --alloy-shadow: #8d959f;
+  --alloy-deep: #606975;
+  --ink: #121722;
+  --ink-soft: #202838;
+  --mist: rgba(255,255,255,0.62);
+  --glass: rgba(248, 252, 255, 0.16);
+  --glass-strong: rgba(248, 252, 255, 0.24);
+  --aqua: #6fd5ff;
+  --aqua-soft: rgba(111, 213, 255, 0.2);
+  --terminal: #98ffb8;
+  --terminal-dim: #64d890;
+  --danger: #ff7a7a;
+  --line: rgba(255,255,255,0.14);
+  --shadow: 0 24px 80px rgba(7, 11, 18, 0.42);
+  --radius: 28px;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'Space Grotesk', sans-serif;
+  color: var(--alloy);
+  background:
+    radial-gradient(circle at top left, rgba(111,213,255,0.18), transparent 30%),
+    radial-gradient(circle at 85% 12%, rgba(152,255,184,0.12), transparent 24%),
+    linear-gradient(180deg, #5f6772 0%, #3d4550 10%, #1a202a 36%, #0d1219 100%);
+  overflow-x: hidden;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), transparent 12%, transparent 88%, rgba(0,0,0,0.28)),
+    repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 4px);
+  opacity: 0.75;
+}
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at center, transparent 55%, rgba(0,0,0,0.32) 100%);
+}
+img { max-width: 100%; display: block; }
+a { color: inherit; text-decoration: none; }
+.container { width: min(1120px, calc(100vw - 32px)); margin: 0 auto; }
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: blur(18px);
+  background: rgba(10, 14, 21, 0.48);
+  border-bottom: 1px solid var(--line);
+}
+.nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.brand-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #dfffff, var(--aqua));
+  box-shadow: 0 0 24px rgba(111, 213, 255, 0.7);
+}
+.nav-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.92rem;
+  color: #dce6f3;
+}
+.nav-links a {
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  transition: 180ms ease;
+}
+.nav-links a:hover {
+  border-color: var(--line);
+  background: rgba(255,255,255,0.08);
+}
+.hero {
+  padding: 56px 0 36px;
+}
+.hero-shell {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 34px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.02)),
+    linear-gradient(160deg, rgba(116,124,137,0.55), rgba(19,24,34,0.92) 40%, rgba(10,12,18,0.98));
+  box-shadow: var(--shadow);
+}
+.hero-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, rgba(255,255,255,0.18), transparent 28%, transparent 72%, rgba(255,255,255,0.08));
+  pointer-events: none;
+}
+.hero-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 32px;
+  padding: 44px;
+}
+.badges, .mini-specs, .stat-grid, .cards, .stack, .footer-links { display: flex; gap: 12px; flex-wrap: wrap; }
+.badge {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.07);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #edf6ff;
+}
+.badge.green { color: var(--terminal); border-color: rgba(152,255,184,0.24); background: rgba(152,255,184,0.08); }
+.badge.blue { color: #d6f7ff; border-color: rgba(111,213,255,0.3); background: rgba(111,213,255,0.12); }
+.hero h1 {
+  margin: 18px 0 12px;
+  font-size: clamp(3rem, 7vw, 5.5rem);
+  line-height: 0.9;
+  letter-spacing: -0.05em;
+  color: #f8fbff;
+}
+.hero p.lead {
+  margin: 0 0 22px;
+  max-width: 60ch;
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  line-height: 1.6;
+  color: #d4dde9;
+}
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 24px 0 28px;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  font-weight: 700;
+  transition: transform 180ms ease, background 180ms ease, border-color 180ms ease;
+}
+.btn:hover { transform: translateY(-2px); }
+.btn-primary {
+  color: #07111a;
+  background: linear-gradient(180deg, #f2fdff, #8edfff);
+  border-color: rgba(255,255,255,0.28);
+}
+.btn-secondary {
+  color: #eff8ff;
+  background: rgba(255,255,255,0.08);
+}
+.mini-spec {
+  min-width: 150px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.mini-spec strong {
+  display: block;
+  font-size: 1.2rem;
+  color: #fff;
+}
+.mini-spec span {
+  font-size: 0.82rem;
+  color: #c2cedd;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.hero-visual {
+  align-self: stretch;
+  display: grid;
+  gap: 18px;
+}
+.screen {
+  padding: 18px;
+  border-radius: 24px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: linear-gradient(180deg, rgba(9,13,19,0.82), rgba(9,13,19,0.95));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+}
+.screen-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  color: #9bb2c6;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.dots { display: flex; gap: 8px; }
+.dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #f6fbff, #909dad);
+}
+.hero-visual img {
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.terminal {
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(152,255,184,0.18);
+  background: linear-gradient(180deg, rgba(8,14,12,0.92), rgba(5,10,9,0.98));
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--terminal);
+  box-shadow: inset 0 0 36px rgba(152,255,184,0.04);
+}
+.terminal .muted { color: #7da18b; }
+.terminal .cmd { color: #edfff4; }
+section {
+  padding: 28px 0 0;
+}
+.section-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 18px;
+}
+.section-head h2 {
+  margin: 0;
+  font-size: clamp(1.8rem, 3vw, 3rem);
+  color: #f4f8ff;
+}
+.section-head p {
+  margin: 0;
+  max-width: 44ch;
+  color: #c1ccda;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.card {
+  position: relative;
+  overflow: hidden;
+  padding: 24px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+  box-shadow: var(--shadow);
+}
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(140deg, rgba(255,255,255,0.08), transparent 42%);
+  pointer-events: none;
+}
+.card h3 { margin: 0 0 10px; font-size: 1.15rem; color: #fff; }
+.card p, .card li, .timeline p { color: #cad5e2; line-height: 1.6; }
+.card ul { margin: 12px 0 0; padding-left: 18px; }
+.stack {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.install-block {
+  padding: 22px;
+  border-radius: 26px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(13,18,28,0.92), rgba(14,19,29,0.78));
+  box-shadow: var(--shadow);
+}
+.code {
+  overflow-x: auto;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.94rem;
+  line-height: 1.75;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(0,0,0,0.32);
+  color: #ecf8ff;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.code .green { color: var(--terminal); }
+.code .blue { color: #93dfff; }
+.timeline {
+  display: grid;
+  gap: 14px;
+}
+.timeline-item {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+.timeline-item b {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f3fdff, #93ddff);
+  color: #07111a;
+}
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.stat {
+  padding: 20px;
+  border-radius: 24px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.stat strong {
+  display: block;
+  font-size: clamp(1.5rem, 4vw, 2.4rem);
+  color: #ffffff;
+}
+.stat span {
+  display: block;
+  margin-top: 6px;
+  color: #c0ccdb;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+}
+.footer {
+  padding: 44px 0 56px;
+  color: #b3c0d0;
+}
+.footer-box {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  padding: 22px 24px;
+  border-radius: 26px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.06);
+}
+.footer-links a {
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.reveal { opacity: 0; transform: translateY(18px); transition: 600ms ease; }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+@media (max-width: 980px) {
+  .hero-grid, .cards, .stack, .stat-grid { grid-template-columns: 1fr; }
+  .hero-grid { padding: 28px; }
+}
+@media (max-width: 720px) {
+  .nav-inner, .section-head, .footer-box { flex-direction: column; align-items: flex-start; }
+  .hero h1 { font-size: clamp(2.8rem, 14vw, 4.2rem); }
+  .container { width: min(1120px, calc(100vw - 20px)); }
+  .hero-grid { padding: 22px; gap: 22px; }
+  .card, .install-block, .stat, .mini-spec { border-radius: 22px; }
+}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="container nav-inner">
+    <a class="brand" href="#top"><span class="brand-dot"></span><span>necros-g4</span></a>
+    <div class="nav-links">
+      <a href="#vision">Vision</a>
+      <a href="#hardware">Hardware</a>
+      <a href="#deploy">Deploy</a>
+      <a href="#status">Status</a>
+      <a href="https://github.com/WaD45/NecrOS-G4" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="container hero-shell reveal visible">
+    <div class="hero-grid">
+      <div>
+        <div class="badges">
+          <span class="badge blue">PowerBook G4 port</span>
+          <span class="badge green">APK / OpenRC</span>
+          <span class="badge">32-bit PowerPC</span>
+        </div>
+        <h1>Resurrecting the silicon dead, this time in brushed aluminum.</h1>
+        <p class="lead">necros-g4 reprend l’ADN terminal-first de NecrOS, mais l’habille pour le monde PowerBook G4: machine de terrain, coque aluminium, écran froid, clavier noir et ligne de commande verte à l’intérieur.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://github.com/WaD45/NecrOS-G4" target="_blank" rel="noopener">Open Repository</a>
+          <a class="btn btn-secondary" href="#deploy">Voir le flux d’installation</a>
+        </div>
+        <div class="mini-specs">
+          <div class="mini-spec"><span>Base cible</span><strong>Adélie Linux</strong></div>
+          <div class="mini-spec"><span>Build artefact</span><strong>make build-ppc</strong></div>
+          <div class="mini-spec"><span>Approche</span><strong>Bundle + install local</strong></div>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <div class="screen">
+          <div class="screen-top"><span>PowerBook G4 shell</span><div class="dots"><span></span><span></span><span></span></div></div>
+          <img src="necros-powerbook-g4.png" alt="necros-g4 PowerBook G4 artwork">
+        </div>
+        <div class="terminal">
+          <div class="muted">root@powerbook-g4:~#</div>
+          <div class="cmd">wget -qO- https://raw.githubusercontent.com/WaD45/NecrOS-G4/main/install.sh | sh</div>
+          <br>
+          <div class="muted">status</div>
+          <div>architecture ...... <strong>powerpc / 32-bit</strong></div>
+          <div>recommended base .. <strong>adelie linux</strong></div>
+          <div>delivery path ..... <strong>ppc bundle</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section id="vision">
+    <div class="container">
+      <div class="section-head reveal">
+        <h2>Same necromancer mood, different machine.</h2>
+        <p>La page d’origine jouait la carte CRT sombre. Ici on garde l’ADN hostile et minimal, mais on le projette dans une esthétique PowerBook G4: métal froid, éclats Aqua, cockpit portable et terminal opérationnel.</p>
+      </div>
+      <div class="cards">
+        <article class="card reveal">
+          <h3>PowerPC-first</h3>
+          <p>Le port n’essaie plus de maquiller un flux x86. Il assume un chemin PowerPC distinct, avec détection `ppc`, build dédié et documentation orientée PowerBook G4.</p>
+        </article>
+        <article class="card reveal">
+          <h3>Portable field rig</h3>
+          <p>L’idée n’est pas une distro de labo lourde, mais un poste léger, utilisable sur ancien matériel, pensé pour l’intervention et la discrétion.</p>
+        </article>
+        <article class="card reveal">
+          <h3>Apple 2003, not museum cosplay</h3>
+          <p>On reprend les codes visuels du G4 sans tomber dans la nostalgie kitsch: reflets aluminium, rondeurs Aqua, contraste froid, typographie propre et terminal lisible.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="hardware">
+    <div class="container">
+      <div class="section-head reveal">
+        <h2>Hardware envelope</h2>
+        <p>Le projet vise une machine réelle avec contraintes réelles: RAM limitée, CPU PowerPC 32-bit, support graphique imparfait, mais un clavier et un form factor encore très exploitables.</p>
+      </div>
+      <div class="stat-grid">
+        <div class="stat reveal"><strong>32-bit</strong><span>PowerPC target</span></div>
+        <div class="stat reveal"><strong>256 MB</strong><span>RAM viable floor</span></div>
+        <div class="stat reveal"><strong>OpenRC</strong><span>Light init stack</span></div>
+        <div class="stat reveal"><strong>APK</strong><span>Package workflow</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="deploy">
+    <div class="container stack">
+      <div class="install-block reveal">
+        <div class="section-head">
+          <h2>Deploy path</h2>
+          <p>Le flux le plus crédible aujourd’hui n’est pas un ISO PPC magique, mais un bundle généré côté build puis installé localement sur la machine cible.</p>
+        </div>
+        <div class="code"><span class="blue"># build the ppc bundle</span><br><span class="green">make build-ppc</span><br><br><span class="blue"># on the PowerBook G4</span><br>tar xzf build/necros-g4-1.0-ppc-bundle.tar.gz<br>cd necros-1.0-ppc<br><span class="green">sudo sh necro_install.sh --minimal --no-gui</span></div>
+      </div>
+      <div class="install-block reveal">
+        <div class="section-head">
+          <h2>Execution order</h2>
+          <p>Le port doit rester incrémental: d’abord le runtime, ensuite les toolboxes, enfin le boot media Open Firmware.</p>
+        </div>
+        <div class="timeline">
+          <div class="timeline-item"><b>1</b><p>Installer une base PPC compatible, idéalement Adélie Linux.</p></div>
+          <div class="timeline-item"><b>2</b><p>Déployer necros-g4 en mode CLI et valider réseau, shell, outils core.</p></div>
+          <div class="timeline-item"><b>3</b><p>Tester GUI et packages toolbox par toolbox, pas en bloc.</p></div>
+          <div class="timeline-item"><b>4</b><p>Traiter ensuite les cas big-endian et le vrai média de boot.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="status">
+    <div class="container">
+      <div class="section-head reveal">
+        <h2>Project status</h2>
+        <p>Le dépôt NecrOS-G4 contient déjà le socle de portage: détection PowerPC, support Alpine/Adélie côté runtime, bundle `build-ppc`, documentation G4, et identité de projet séparée.</p>
+      </div>
+      <div class="cards">
+        <article class="card reveal">
+          <h3>Implemented now</h3>
+          <ul>
+            <li>PowerPC architecture detection</li>
+            <li>Adélie-friendly installer path</li>
+            <li>PPC deployment bundle output</li>
+            <li>GitHub Pages-ready docs entrypoint</li>
+          </ul>
+        </article>
+        <article class="card reveal">
+          <h3>Next engineering pass</h3>
+          <ul>
+            <li>Audit toolbox package availability on PPC</li>
+            <li>Isolate big-endian-sensitive tooling</li>
+            <li>Validate X11 path on real PowerBook hardware</li>
+            <li>Prototype Open Firmware media flow</li>
+          </ul>
+        </article>
+        <article class="card reveal">
+          <h3>Repository links</h3>
+          <ul>
+            <li><a href="https://github.com/WaD45/NecrOS-G4" target="_blank" rel="noopener">Source repository</a></li>
+            <li><a href="https://github.com/WaD45/NecrOS-G4/blob/main/docs/powerbook-g4.md" target="_blank" rel="noopener">Porting notes</a></li>
+            <li><a href="https://github.com/WaD45/NecrOS-G4/blob/main/README.md" target="_blank" rel="noopener">README</a></li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="container footer-box reveal">
+    <div>
+      <strong>necros-g4</strong><br>
+      <span>PowerBook G4 adaptation of the NecrOS vision.</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/WaD45/NecrOS-G4" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/WaD45/NecrOS-G4/issues" target="_blank" rel="noopener">Issues</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((entry, index) => {
+    if (entry.isIntersecting) {
+      setTimeout(() => entry.target.classList.add('visible'), index * 70);
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.12 });
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
