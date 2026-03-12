@@ -1,6 +1,6 @@
 #!/bin/sh
 # ============================================================================
-#  NecrOS SYSINFO v1.0 — System Information Dashboard
+#  necros-g4 SYSINFO v1.0 — System Information Dashboard
 # ============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -19,7 +19,11 @@ _hr() { printf '%s────────────────────�
 _hr
 printf '%s SYSTEM %s\n' "$BOLD" "$NC"
 printf '  OS:           %s\n' "NecrOS v$(cat /usr/local/necros/VERSION 2>/dev/null || echo '?')"
-printf '  Base:         %s\n' "Alpine Linux $(cat /etc/alpine-release 2>/dev/null || echo '?')"
+if [ -f /usr/local/necros/lib/necros-common.sh ]; then
+    # shellcheck source=../lib/necros-common.sh
+    . /usr/local/necros/lib/necros-common.sh 2>/dev/null || true
+fi
+printf '  Base:         %s %s\n' "${NECROS_BASE_DISTRO:-unknown}" "${NECROS_BASE_VERSION:-?}"
 printf '  Kernel:       %s\n' "$(uname -r)"
 printf '  Architecture: %s (%s-bit)\n' "$(uname -m)" "$(getconf LONG_BIT 2>/dev/null || echo '?')"
 printf '  Hostname:     %s\n' "$(hostname)"

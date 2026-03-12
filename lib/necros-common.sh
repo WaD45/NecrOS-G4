@@ -45,6 +45,31 @@ fi
 export RED GREEN YELLOW BLUE MAGENTA CYAN BOLD NC
 
 # ---------------------------------------------------------------------------
+# Base distribution detection
+# ---------------------------------------------------------------------------
+detect_base_distro() {
+    NECROS_BASE_DISTRO="unknown"
+    NECROS_BASE_VERSION="unknown"
+
+    if [ -r /etc/os-release ]; then
+        NECROS_BASE_DISTRO=$(awk -F= '/^ID=/{gsub(/"/, "", $2); print $2; exit}' /etc/os-release)
+        NECROS_BASE_VERSION=$(awk -F= '/^VERSION_ID=/{gsub(/"/, "", $2); print $2; exit}' /etc/os-release)
+    fi
+
+    if [ "$NECROS_BASE_DISTRO" = "unknown" ] && [ -f /etc/alpine-release ]; then
+        NECROS_BASE_DISTRO="alpine"
+        NECROS_BASE_VERSION=$(cat /etc/alpine-release 2>/dev/null)
+    fi
+
+    if [ "$NECROS_BASE_DISTRO" = "unknown" ] && [ -f /etc/adelie-release ]; then
+        NECROS_BASE_DISTRO="adelie"
+        NECROS_BASE_VERSION=$(cat /etc/adelie-release 2>/dev/null)
+    fi
+
+    export NECROS_BASE_DISTRO NECROS_BASE_VERSION
+}
+
+# ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
 NECROS_LOG="/var/log/necros.log"
@@ -76,6 +101,14 @@ detect_arch() {
             NECROS_ARCH_FAMILY="x86_64"
             NECROS_BITS=64
             ;;
+        ppc|powerpc|ppc32)
+            NECROS_ARCH_FAMILY="powerpc"
+            NECROS_BITS=32
+            ;;
+        ppc64|ppc64le|powerpc64|powerpc64le)
+            NECROS_ARCH_FAMILY="powerpc"
+            NECROS_BITS=64
+            ;;
         aarch64|arm64)
             NECROS_ARCH_FAMILY="aarch64"
             NECROS_BITS=64
@@ -95,6 +128,9 @@ detect_arch() {
 # Convenience check
 is_32bit() { [ "$NECROS_BITS" -eq 32 ] 2>/dev/null; }
 is_lowmem() { [ "$(get_mem_mb)" -lt 512 ] 2>/dev/null; }
+is_powerpc() { [ "$NECROS_ARCH_FAMILY" = "powerpc" ] 2>/dev/null; }
+is_adelie() { [ "$NECROS_BASE_DISTRO" = "adelie" ] 2>/dev/null; }
+is_alpine() { [ "$NECROS_BASE_DISTRO" = "alpine" ] 2>/dev/null; }
 
 # ---------------------------------------------------------------------------
 # System probes
@@ -110,6 +146,8 @@ get_disk_free_mb() {
 get_alpine_version() {
     if [ -f /etc/alpine-release ]; then
         cut -d. -f1,2 /etc/alpine-release
+    elif [ -n "$NECROS_BASE_VERSION" ] && [ "$NECROS_BASE_VERSION" != "unknown" ]; then
+        printf '%s\n' "$NECROS_BASE_VERSION"
     else
         echo "unknown"
     fi
@@ -123,7 +161,13 @@ require_root() {
 }
 
 require_alpine() {
-    [ -f /etc/alpine-release ] || die "NecrOS nécessite Alpine Linux comme base."
+    is_alpine || die "NecrOS nécessite Alpine Linux comme base."
+}
+
+require_supported_base() {
+    is_alpine && return 0
+    is_adelie && return 0
+    die "NecrOS nécessite une base APK/OpenRC compatible: Alpine Linux ou Adélie Linux."
 }
 
 require_mem() {
@@ -253,3 +297,4 @@ BANNER
 
 # Auto-detect architecture on source
 detect_arch
+detect_base_distro

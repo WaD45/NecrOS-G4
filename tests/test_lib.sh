@@ -59,8 +59,9 @@ _test "NECROS_BITS is 32 or 64" \
 # Functions exist
 # ---------------------------------------------------------------------------
 for _fn in log warn err die info ok get_mem_mb get_disk_free_mb \
-           necros_banner detect_arch is_32bit is_lowmem \
-           mark_done is_done run_once ensure_swap; do
+           necros_banner detect_arch is_32bit is_lowmem is_powerpc \
+           is_adelie is_alpine mark_done is_done run_once ensure_swap \
+           require_supported_base; do
     _test "Function '$_fn' is defined" "type '$_fn' >/dev/null 2>&1"
 done
 

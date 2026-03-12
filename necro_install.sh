@@ -1,7 +1,7 @@
 #!/bin/sh
 # ============================================================================
-#  NecrOS Installer v1.0 — "Resurrecting the Silicon Dead"
-#  Le Kali du 32-bits — Ultra-light pentest OS on Alpine Linux
+#  necros-g4 Installer v1.0 — "Resurrecting the Silicon Dead"
+#  Le Kali du 32-bits — Ultra-light pentest OS on Alpine/Adelie Linux
 #
 #  Usage:  sh necro_install.sh [--minimal|--full] [--no-gui] [--force]
 # ============================================================================
@@ -50,7 +50,7 @@ Options:
 Minimum requirements:
   RAM:  256 MB (512 MB recommended)
   Disk: 500 MB (2 GB recommended for --full)
-  Base: Alpine Linux 3.18+
+  Base: Alpine Linux 3.18+ ou Adélie Linux
 EOF
             exit 0
             ;;
@@ -68,7 +68,7 @@ done
 preflight() {
     necros_banner
     require_root
-    require_alpine
+    require_supported_base
     require_mem 192
     require_disk 500
 
@@ -78,8 +78,12 @@ preflight() {
     log "Architecture: ${NECROS_ARCH} (${NECROS_BITS}-bit)"
     log "RAM: ${_mem}MB"
     log "Disque libre: $(get_disk_free_mb /)MB"
-    log "Alpine: $(get_alpine_version)"
+    log "Base: ${NECROS_BASE_DISTRO} ${NECROS_BASE_VERSION}"
     log "Mode: ${INSTALL_MODE} | GUI: ${INSTALL_GUI}"
+
+    if is_powerpc; then
+        warn "Plateforme PowerPC détectée: le chemin recommandé est une installation sur système existant, idéalement Adélie Linux sur PowerBook G4."
+    fi
 
     # Auto-swap on low-memory systems
     if [ "$_mem" -lt 512 ]; then
@@ -99,7 +103,14 @@ preflight() {
 # Repository setup
 # ---------------------------------------------------------------------------
 setup_repositories() {
-    log "Configuration des dépôts Alpine..."
+    log "Configuration des dépôts APK..."
+
+    if is_adelie; then
+        info "Base Adélie détectée — conservation des dépôts système existants"
+        apk update >> "$NECROS_LOG" 2>&1
+        ok "Dépôts Adélie rafraîchis"
+        return 0
+    fi
 
     local _ver
     _ver=$(get_alpine_version)
@@ -222,10 +233,14 @@ install_gui() {
         xorg-server xinit xrandr xset xsetroot xrdb \
         xf86-input-evdev xf86-input-libinput
 
-    # Video drivers — try the generic VESA first, then fbdev (works on everything 32-bit)
-    pkg_install xf86-video-vesa xf86-video-fbdev
-    # Try modesetting on newer kernels
-    pkg_install xf86-video-modesetting 2>/dev/null || true
+    # Video drivers: PowerPC laptops usually rely on fbdev or modesetting, not legacy x86 VESA.
+    if is_powerpc; then
+        pkg_install xf86-video-fbdev
+        pkg_install xf86-video-modesetting 2>/dev/null || true
+    else
+        pkg_install xf86-video-vesa xf86-video-fbdev
+        pkg_install xf86-video-modesetting 2>/dev/null || true
+    fi
 
     # Window manager + launcher
     pkg_install i3wm i3status i3lock dmenu rofi

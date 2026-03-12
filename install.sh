@@ -1,13 +1,13 @@
 #!/bin/sh
 # ============================================================================
-#  NecrOS Quick Install
-#  Usage: wget -qO- https://raw.githubusercontent.com/WaD45/NecrOS/main/install.sh | sh
-#  Or:    curl -sL  https://raw.githubusercontent.com/WaD45/NecrOS/main/install.sh | sh
+#  necros-g4 Quick Install
+#  Usage: wget -qO- https://raw.githubusercontent.com/WaD45/NecrOS-G4/main/install.sh | sh
+#  Or:    curl -sL  https://raw.githubusercontent.com/WaD45/NecrOS-G4/main/install.sh | sh
 # ============================================================================
 
 set -e
 
-REPO="https://github.com/WaD45/NecrOS"
+REPO="https://github.com/WaD45/NecrOS-G4-G4-G4"
 BRANCH="main"
 INSTALL_DIR="/tmp/necros-install-$$"
 
@@ -30,7 +30,10 @@ printf '\033[0m'
 [ "$(id -u)" -eq 0 ] || { echo "[✗] Ce script doit être exécuté en tant que root."; exit 1; }
 
 # Check Alpine
-[ -f /etc/alpine-release ] || { echo "[✗] NecrOS nécessite Alpine Linux."; exit 1; }
+if [ ! -f /etc/alpine-release ] && [ ! -f /etc/adelie-release ]; then
+    echo "[✗] NecrOS nécessite Alpine Linux ou Adélie Linux."
+    exit 1
+fi
 
 echo "[+] Téléchargement de NecrOS..."
 

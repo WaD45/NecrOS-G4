@@ -1,6 +1,6 @@
 #!/bin/sh
 # ============================================================================
-#  NecrOS UPDATE v1.0 — Self-updater
+#  necros-g4 UPDATE v1.0 — Self-updater
 # ============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -16,21 +16,21 @@ _LIB="${SCRIPT_DIR}/../lib/necros-common.sh"
     ok()   { printf "${GREEN}[✓]${NC} %s\n" "$1"; }
 }
 
-REPO_URL="https://github.com/WaD45/NecrOS"
+REPO_URL="https://github.com/WaD45/NecrOS-G4-G4-G4"
 NECROS_DIR="/usr/local/necros"
 TMP_DIR="/tmp/necros-update-$$"
 
 show_help() {
     cat <<EOF
-NecrOS UPDATE v1.0
+necros-g4 UPDATE v1.0
 
 Usage: necros-update [COMMAND]
 
 Commands:
   check      Check for updates (default)
   pull       Download and apply updates
-  system     Update Alpine packages
-  all        Update everything (NecrOS + Alpine)
+  system     Update system packages
+  all        Update everything (NecrOS + system)
   -h,--help  Show help
 EOF
 }
@@ -105,7 +105,7 @@ pull_update() {
 
 update_system() {
     require_root
-    log "Mise à jour des paquets Alpine..."
+    log "Mise à jour des paquets système (${NECROS_BASE_DISTRO})..."
     apk update >> "$NECROS_LOG" 2>&1
     apk upgrade >> "$NECROS_LOG" 2>&1
     ok "Paquets système mis à jour"

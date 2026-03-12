@@ -2,11 +2,11 @@
   <img src="necroslogo2.png" alt="NecrOS Logo" width="1000"/>
 </p>
 
-# NecrOS v1.0
+# necros-g4 v1.0
 
 ### "Resurrecting the Silicon Dead"
 
-**Le Kali du 32-bits** — Un OS de pentest ultra-léger basé sur Alpine Linux, conçu pour faire revivre les vieilles machines et offrir un environnement de hacking complet sur du matériel limité.
+**necros-g4** — Un OS de pentest ultra-léger basé sur Alpine Linux, avec un chemin de portage PowerPC orienté Adélie Linux, conçu pour faire revivre les vieilles machines et offrir un environnement de hacking complet sur du matériel limité.
 
 ---
 
@@ -19,14 +19,14 @@ Les distributions de sécurité modernes (Kali, Parrot, BlackArch) sont devenues
 | **RAM minimum** | 256 MB | 2 GB | 1 GB |
 | **Disque minimum** | 500 MB | 20 GB | 16 GB |
 | **Support 32-bit natif** | Oui | Abandonné | Limité |
-| **Base** | Alpine (musl) | Debian (glibc) | Debian (glibc) |
+| **Base** | Alpine / Adélie (musl) | Debian (glibc) | Debian (glibc) |
 | **Init** | OpenRC | systemd | systemd |
 
 ---
 
 ## Caractéristiques
 
-- Support x86 (32-bit), x86\_64, ARM64 et ARMv7
+- Support x86 (32-bit), x86\_64, ARM64, ARMv7 et PowerPC 32-bit (installation target)
 - Fonctionne avec **256 MB de RAM** (swap automatique)
 - Auto-adaptation : détecte les contraintes matérielles et ajuste l'installation
 - Interface i3wm ultra-légère avec thème "Necromancer"
@@ -43,25 +43,25 @@ Les distributions de sécurité modernes (Kali, Parrot, BlackArch) sont devenues
 
 | | Minimum | Recommandé |
 |---|---|---|
-| CPU | x86 (Pentium III+) | Tout x86/x86\_64 |
+| CPU | x86 (Pentium III+) / PowerPC G4 | Tout x86/x86\_64 |
 | RAM | 256 MB | 512 MB |
 | Disque | 500 MB | 5 GB |
-| Base | Alpine Linux 3.18+ | Alpine 3.20+ |
+| Base | Alpine Linux 3.18+ ou Adélie Linux | Alpine 3.20+ |
 
 ### Méthode 1 : Installation rapide (réseau)
 
 ```bash
-# Sur un Alpine Linux fraîchement installé :
-wget -qO- https://raw.githubusercontent.com/WaD45/NecrOS/main/install.sh | sh
+# Sur un Alpine Linux ou Adélie Linux fraîchement installé :
+wget -qO- https://raw.githubusercontent.com/WaD45/NecrOS-G4/main/install.sh | sh
 ```
 
 ### Méthode 2 : Installation manuelle
 
 ```bash
-# 1. Installer Alpine Linux (mode "sys")
+# 1. Installer Alpine Linux (mode "sys") ou Adélie Linux
 # 2. Cloner le dépôt
-git clone https://github.com/WaD45/NecrOS.git
-cd NecrOS
+git clone https://github.com/WaD45/NecrOS-G4.git
+cd NecrOS-G4
 
 # 3. Lancer l'installation
 sh necro_install.sh
@@ -72,6 +72,19 @@ sh necro_install.sh --full       # Tout, y compris toutes les toolboxes
 sh necro_install.sh --no-gui     # Pas d'interface graphique
 sh necro_install.sh --force      # Relancer toutes les étapes
 ```
+
+### Portage PowerBook G4
+
+Le support PowerBook G4 passe actuellement par une **installation sur un Linux PowerPC existant**,
+avec **Adélie Linux** comme base cible prioritaire.
+Le flux ISO live reste orienté x86/x86\_64. Pour générer l'artefact PPC :
+
+```bash
+make build-ppc
+```
+
+Cela produit un bundle d'installation contenant `necros.apkovl.tar.gz` et les scripts NecrOS,
+prévu pour être copié sur la machine cible puis installé localement.
 
 ### Après l'installation
 

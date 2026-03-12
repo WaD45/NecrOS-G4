@@ -1,12 +1,12 @@
 # ============================================================================
-#  NecrOS Makefile
+#  necros-g4 Makefile
 # ============================================================================
 
 VERSION := $(shell cat VERSION 2>/dev/null || echo "0.0.0")
 SHELL   := /bin/sh
 SCRIPTS := $(shell find . -name '*.sh' -not -path './.git/*')
 
-.PHONY: help lint test build clean install
+.PHONY: help lint test build build-64 build-ppc clean install
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | sort | \
@@ -26,12 +26,15 @@ test: lint ## Run lint + integration tests
 	@echo "[✓] All tests passed"
 
 build: ## Build the ISO (requires Alpine Linux)
-	@echo "[*] Building NecrOS v$(VERSION) ISO..."
+	@echo "[*] Building necros-g4 v$(VERSION) ISO..."
 	@sh build_iso.sh --arch x86 --output build/
 	@echo "[✓] Build complete"
 
 build-64: ## Build 64-bit ISO
 	@sh build_iso.sh --arch x86_64 --output build/
+
+build-ppc: ## Build a PowerPC install bundle for PowerBook G4 class hardware
+	@sh build_iso.sh --arch ppc --output build/
 
 clean: ## Clean build artifacts
 	@rm -rf build/ /tmp/necros-*
@@ -42,10 +45,10 @@ install: ## Install NecrOS on current Alpine system (requires root)
 
 release: lint test ## Create a release tarball
 	@mkdir -p build
-	@tar czf "build/necros-$(VERSION).tar.gz" \
+	@tar czf "build/necros-g4-$(VERSION).tar.gz" \
 		--exclude='.git' --exclude='build' --exclude='*.tar.gz' \
 		-C .. "$(notdir $(CURDIR))"
-	@echo "[✓] Release tarball: build/necros-$(VERSION).tar.gz"
+	@echo "[✓] Release tarball: build/necros-g4-$(VERSION).tar.gz"
 
 version: ## Show current version
-	@echo "NecrOS v$(VERSION)"
+	@echo "necros-g4 v$(VERSION)"
