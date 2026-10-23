@@ -17,25 +17,31 @@ if [ ! -f "$LIB" ]; then
     # Fallback: already installed
     LIB="/usr/local/necros/lib/necros-common.sh"
 fi
-[ -f "$LIB" ] || { echo "[✗] Cannot find necros-common.sh"; exit 1; }
+[ -f "$LIB" ] || {
+    echo "[✗] Cannot find necros-common.sh"
+    exit 1
+}
 # shellcheck source=lib/necros-common.sh
 . "$LIB"
 
 # ---------------------------------------------------------------------------
 # CLI flags
 # ---------------------------------------------------------------------------
-INSTALL_MODE="standard"  # minimal | standard | full
+INSTALL_MODE="standard" # minimal | standard | full
 INSTALL_GUI=1
 FORCE=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --minimal)  INSTALL_MODE="minimal" ;;
-        --full)     INSTALL_MODE="full" ;;
-        --no-gui)   INSTALL_GUI=0 ;;
-        --force)    FORCE=1 ;;
-        --dry-run)  NECROS_DRY_RUN=1; export NECROS_DRY_RUN ;;
-        -h|--help)
+        --minimal) INSTALL_MODE="minimal" ;;
+        --full) INSTALL_MODE="full" ;;
+        --no-gui) INSTALL_GUI=0 ;;
+        --force) FORCE=1 ;;
+        --dry-run)
+            NECROS_DRY_RUN=1
+            export NECROS_DRY_RUN
+            ;;
+        -h | --help)
             cat <<EOF
 NecrOS Installer v${NECROS_VERSION}
 
@@ -114,7 +120,7 @@ setup_repositories() {
 
     if is_adelie; then
         info "Base Adélie détectée — conservation des dépôts système existants"
-        apk update >> "$NECROS_LOG" 2>&1
+        apk update >>"$NECROS_LOG" 2>&1
         ok "Dépôts Adélie rafraîchis"
         return 0
     fi
@@ -125,13 +131,13 @@ setup_repositories() {
 
     cp /etc/apk/repositories /etc/apk/repositories.necros-bak 2>/dev/null || true
 
-    cat > /etc/apk/repositories <<EOF
+    cat >/etc/apk/repositories <<EOF
 https://dl-cdn.alpinelinux.org/alpine/v${_ver}/main
 https://dl-cdn.alpinelinux.org/alpine/v${_ver}/community
 @testing https://dl-cdn.alpinelinux.org/alpine/edge/testing
 EOF
 
-    apk update >> "$NECROS_LOG" 2>&1
+    apk update >>"$NECROS_LOG" 2>&1
     ok "Dépôts configurés (Alpine v${_ver})"
 }
 
@@ -160,7 +166,7 @@ install_core() {
     if necros_is_dry_run; then
         info "[dry-run] configurerait /etc/doas.conf (permit persist :wheel)"
     elif [ ! -f /etc/doas.conf ] || ! grep -q "permit persist :wheel" /etc/doas.conf 2>/dev/null; then
-        echo "permit persist :wheel" > /etc/doas.conf
+        echo "permit persist :wheel" >/etc/doas.conf
         chmod 600 /etc/doas.conf
     fi
 
@@ -233,7 +239,10 @@ install_python_tools() {
 # GUI: X11 + i3wm
 # ---------------------------------------------------------------------------
 install_gui() {
-    [ "$INSTALL_GUI" -eq 0 ] && { info "GUI désactivée (--no-gui)"; return 0; }
+    [ "$INSTALL_GUI" -eq 0 ] && {
+        info "GUI désactivée (--no-gui)"
+        return 0
+    }
 
     log "Installation de l'interface graphique..."
 
@@ -295,7 +304,7 @@ install_shell() {
     else
         # Set zsh as default shell for root
         if command -v chsh >/dev/null 2>&1; then
-            chsh -s /bin/zsh root 2>/dev/null || \
+            chsh -s /bin/zsh root 2>/dev/null ||
                 sed -i 's|root:/bin/ash|root:/bin/zsh|' /etc/passwd 2>/dev/null || true
         fi
     fi
@@ -343,11 +352,11 @@ deploy_necros_files() {
     done
 
     # Symlink binaries
-    ln -sf "$_dest/core/vanish.sh"       /usr/local/bin/necros-vanish
-    ln -sf "$_dest/core/payload.sh"      /usr/local/bin/necros-payload
-    ln -sf "$_dest/core/recon.sh"        /usr/local/bin/necros-recon
-    ln -sf "$_dest/core/sysinfo.sh"      /usr/local/bin/necros-sysinfo
-    ln -sf "$_dest/core/update.sh"       /usr/local/bin/necros-update
+    ln -sf "$_dest/core/vanish.sh" /usr/local/bin/necros-vanish
+    ln -sf "$_dest/core/payload.sh" /usr/local/bin/necros-payload
+    ln -sf "$_dest/core/recon.sh" /usr/local/bin/necros-recon
+    ln -sf "$_dest/core/sysinfo.sh" /usr/local/bin/necros-sysinfo
+    ln -sf "$_dest/core/update.sh" /usr/local/bin/necros-update
 
     ok "Fichiers NecrOS déployés dans $_dest"
 }
@@ -363,7 +372,7 @@ create_toolbox_manager() {
         return 0
     fi
 
-    cat > /usr/local/bin/necros-toolbox << 'TOOLBOX'
+    cat >/usr/local/bin/necros-toolbox <<'TOOLBOX'
 #!/bin/sh
 # NecrOS Toolbox Manager v1.0
 
@@ -476,7 +485,7 @@ configure_theme() {
     fi
 
     # --- Xresources (urxvt) ---
-    cat > /root/.Xresources << 'XRES'
+    cat >/root/.Xresources <<'XRES'
 ! NecrOS Terminal Theme — "The Necromancer"
 URxvt.scrollBar:       false
 URxvt.font:            xft:Terminus:size=12:antialias=true
@@ -512,7 +521,7 @@ XRES
 
     # --- i3 config ---
     mkdir -p /root/.config/i3
-    cat > /root/.config/i3/config << 'I3CONF'
+    cat >/root/.config/i3/config <<'I3CONF'
 # NecrOS i3 Configuration v1.0
 set $mod Mod4
 font pango:Terminus 10
@@ -647,7 +656,7 @@ exec --no-startup-id xsetroot -solid '#0a0a0a'
 I3CONF
 
     # --- i3status ---
-    cat > /root/.config/i3/i3status.conf << 'I3STAT'
+    cat >/root/.config/i3/i3status.conf <<'I3STAT'
 general {
     colors = true
     color_good = "#00ff41"
@@ -687,7 +696,7 @@ I3STAT
 
     # --- Rofi ---
     mkdir -p /root/.config/rofi
-    cat > /root/.config/rofi/necros.rasi << 'ROFI'
+    cat >/root/.config/rofi/necros.rasi <<'ROFI'
 * {
     background: #0a0a0a;
     foreground: #00ff41;
@@ -711,7 +720,7 @@ element selected { background-color: @selected-background; text-color: @selected
 ROFI
 
     # --- xinitrc ---
-    cat > /root/.xinitrc << 'XINIT'
+    cat >/root/.xinitrc <<'XINIT'
 #!/bin/sh
 xrdb -merge ~/.Xresources
 xsetroot -solid '#0a0a0a'
@@ -735,7 +744,7 @@ configure_zshrc() {
         return 0
     fi
 
-    cat > /root/.zshrc << 'ZSHRC'
+    cat >/root/.zshrc <<'ZSHRC'
 # NecrOS ZSH Configuration v1.0
 
 # Oh My Zsh
@@ -814,11 +823,11 @@ install_splash() {
         return 0
     fi
 
-    cp "$SCRIPT_DIR/core/splash.sh" /etc/init.d/necros-splash 2>/dev/null || \
+    cp "$SCRIPT_DIR/core/splash.sh" /etc/init.d/necros-splash 2>/dev/null ||
         cp /usr/local/necros/core/splash.sh /etc/init.d/necros-splash 2>/dev/null || {
-            warn "splash.sh non trouvé, skip"
-            return 0
-        }
+        warn "splash.sh non trouvé, skip"
+        return 0
+    }
     chmod +x /etc/init.d/necros-splash
     rc-update add necros-splash default 2>/dev/null || true
 
@@ -833,7 +842,7 @@ create_welcome() {
         info "[dry-run] écrirait /etc/profile.d/necros-welcome.sh"
         return 0
     fi
-    cat > /etc/profile.d/necros-welcome.sh << 'WELCOME'
+    cat >/etc/profile.d/necros-welcome.sh <<'WELCOME'
 #!/bin/sh
 if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then
     clear
@@ -915,7 +924,7 @@ cleanup() {
 # ---------------------------------------------------------------------------
 finish() {
     printf '\n%s' "$GREEN"
-    cat << 'FIN'
+    cat <<'FIN'
     ╔═══════════════════════════════════════════════════════════╗
     ║                                                           ║
     ║   NECROS v1.0 — INSTALLATION TERMINÉE                    ║
@@ -947,19 +956,19 @@ FIN
 main() {
     preflight
 
-    run_once "repositories"     setup_repositories
-    run_once "core_packages"    install_core
-    run_once "networking"       install_networking
-    run_once "python_tools"     install_python_tools
-    run_once "gui"              install_gui
-    run_once "shell"            install_shell
-    run_once "deploy_files"     deploy_necros_files
-    run_once "toolbox_manager"  create_toolbox_manager
-    run_once "theme"            configure_theme
-    run_once "zshrc"            configure_zshrc
-    run_once "splash"           install_splash
-    run_once "welcome"          create_welcome
-    run_once "wordlists"        install_wordlists
+    run_once "repositories" setup_repositories
+    run_once "core_packages" install_core
+    run_once "networking" install_networking
+    run_once "python_tools" install_python_tools
+    run_once "gui" install_gui
+    run_once "shell" install_shell
+    run_once "deploy_files" deploy_necros_files
+    run_once "toolbox_manager" create_toolbox_manager
+    run_once "theme" configure_theme
+    run_once "zshrc" configure_zshrc
+    run_once "splash" install_splash
+    run_once "welcome" create_welcome
+    run_once "wordlists" install_wordlists
 
     # Full mode installs all toolboxes
     install_all_toolboxes

@@ -4,6 +4,8 @@
 #  NecrOS SPLASH — Boot Animation (OpenRC service)
 # ============================================================================
 
+# description is consumed by OpenRC, not by this script.
+# shellcheck disable=SC2034
 description="NecrOS Boot Splash"
 
 depend() {
@@ -69,7 +71,7 @@ BANNER
         printf '    \033[1;33mType "startx" to enter the abyss...\033[0m\n\n'
         sleep 1
 
-    } > /dev/tty1 2>/dev/null
+    } >/dev/tty1 2>/dev/null
 
     return 0
 }

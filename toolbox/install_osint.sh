@@ -6,7 +6,10 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 _LIB="${SCRIPT_DIR}/../lib/necros-common.sh"
 [ -f "$_LIB" ] || _LIB="/usr/local/necros/lib/necros-common.sh"
-. "$_LIB" 2>/dev/null || { echo "[!] Library not found"; exit 1; }
+. "$_LIB" 2>/dev/null || {
+    echo "[!] Library not found"
+    exit 1
+}
 
 require_root
 detect_arch
@@ -58,7 +61,7 @@ pip_install shodan
 pip_install theharvester 2>/dev/null || info "theHarvester non disponible via pip"
 
 # --- Helper scripts ---
-cat > /usr/local/bin/necros-osint << 'SCRIPT'
+cat >/usr/local/bin/necros-osint <<'SCRIPT'
 #!/bin/sh
 # NecrOS — Quick OSINT on a domain
 TARGET="$1"

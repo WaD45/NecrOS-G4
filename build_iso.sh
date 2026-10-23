@@ -11,15 +11,18 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/lib/necros-common.sh" 2>/dev/null || {
-    log()  { printf '[+] %s\n' "$1"; }
+    log() { printf '[+] %s\n' "$1"; }
     warn() { printf '[!] %s\n' "$1"; }
-    die()  { printf '[✗] %s\n' "$1"; exit 1; }
-    ok()   { printf '[✓] %s\n' "$1"; }
+    die() {
+        printf '[✗] %s\n' "$1"
+        exit 1
+    }
+    ok() { printf '[✓] %s\n' "$1"; }
     info() { printf '[*] %s\n' "$1"; }
 }
 
 VERSION=$(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo "1.0.0")
-BUILD_ARCH="x86"  # Default to 32-bit (our raison d'être)
+BUILD_ARCH="x86" # Default to 32-bit (our raison d'être)
 OUTPUT_DIR="$SCRIPT_DIR/build"
 WORK_DIR="/tmp/necros-iso-build-$$"
 NECROS_SRC="$SCRIPT_DIR"
@@ -30,9 +33,15 @@ PPC_BUNDLE_DIR=""
 # ---------------------------------------------------------------------------
 while [ $# -gt 0 ]; do
     case "$1" in
-        --arch)     BUILD_ARCH="$2"; shift ;;
-        --output)   OUTPUT_DIR="$2"; shift ;;
-        -h|--help)
+        --arch)
+            BUILD_ARCH="$2"
+            shift
+            ;;
+        --output)
+            OUTPUT_DIR="$2"
+            shift
+            ;;
+        -h | --help)
             cat <<EOF
 necros-g4 ISO Builder v${VERSION}
 
@@ -60,7 +69,7 @@ EOF
 done
 
 case "$BUILD_ARCH" in
-    x86|x86_64|ppc) ;;
+    x86 | x86_64 | ppc) ;;
     *) die "Unsupported architecture: $BUILD_ARCH (expected x86, x86_64 or ppc)" ;;
 esac
 
@@ -91,7 +100,7 @@ apk add --no-cache \
 if ! id "necros-builder" >/dev/null 2>&1; then
     adduser -D necros-builder 2>/dev/null || true
     addgroup necros-builder abuild 2>/dev/null || true
-    echo "necros-builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers 2>/dev/null || true
+    echo "necros-builder ALL=(ALL) NOPASSWD: ALL" >>/etc/sudoers 2>/dev/null || true
 fi
 
 # Generate signing keys if needed
@@ -108,13 +117,13 @@ OVERLAY="$WORK_DIR/overlay"
 
 # /etc
 mkdir -p "$OVERLAY/etc"
-echo "necros" > "$OVERLAY/etc/hostname"
-cat > "$OVERLAY/etc/hosts" <<EOF
+echo "necros" >"$OVERLAY/etc/hostname"
+cat >"$OVERLAY/etc/hosts" <<EOF
 127.0.0.1    localhost necros
 ::1          localhost necros
 EOF
 
-cat > "$OVERLAY/etc/motd" <<MOTD
+cat >"$OVERLAY/etc/motd" <<MOTD
 
     ███╗   ██╗███████╗ ██████╗██████╗  ██████╗ ███████╗
     ████╗  ██║██╔════╝██╔════╝██╔══██╗██╔═══██╗██╔════╝
@@ -146,7 +155,7 @@ cp "$NECROS_SRC/necro_install.sh" "$OVERLAY/usr/local/necros/"
 
 # Convenience: symlink installer to /usr/local/bin
 mkdir -p "$OVERLAY/usr/local/bin"
-cat > "$OVERLAY/usr/local/bin/necro_install.sh" <<'WRAPPER'
+cat >"$OVERLAY/usr/local/bin/necro_install.sh" <<'WRAPPER'
 #!/bin/sh
 exec sh /usr/local/necros/necro_install.sh "$@"
 WRAPPER
@@ -154,7 +163,7 @@ chmod +x "$OVERLAY/usr/local/bin/necro_install.sh"
 
 # APK repositories
 mkdir -p "$OVERLAY/etc/apk"
-cat > "$OVERLAY/etc/apk/repositories" <<REPOS
+cat >"$OVERLAY/etc/apk/repositories" <<REPOS
 https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VER}/main
 https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VER}/community
 REPOS
@@ -181,7 +190,7 @@ if [ "$BUILD_ARCH" = "ppc" ]; then
     cp "$NECROS_SRC/install.sh" "$PPC_BUNDLE_DIR/"
     cp "$NECROS_SRC/README.md" "$PPC_BUNDLE_DIR/"
 
-    cat > "$PPC_BUNDLE_DIR/POWERBOOK_G4.txt" <<EOF
+    cat >"$PPC_BUNDLE_DIR/POWERBOOK_G4.txt" <<EOF
 necros-g4 PowerPC bundle
 =====================
 
@@ -223,14 +232,14 @@ mkdir -p "$OUTPUT_DIR"
 APORTS="/tmp/aports-necros"
 if [ ! -d "$APORTS/scripts" ]; then
     git clone --depth=1 --branch "${ALPINE_VER}-stable" \
-        https://gitlab.alpinelinux.org/alpine/aports.git "$APORTS" 2>/dev/null || \
-    git clone --depth=1 \
-        https://gitlab.alpinelinux.org/alpine/aports.git "$APORTS" 2>/dev/null || \
+        https://gitlab.alpinelinux.org/alpine/aports.git "$APORTS" 2>/dev/null ||
+        git clone --depth=1 \
+            https://gitlab.alpinelinux.org/alpine/aports.git "$APORTS" 2>/dev/null ||
         die "Cannot clone aports"
 fi
 
 # Create custom profile
-cat > "$APORTS/scripts/mkimg.necros.sh" <<'PROFILE'
+cat >"$APORTS/scripts/mkimg.necros.sh" <<'PROFILE'
 profile_necros() {
     title="NecrOS"
     desc="NecrOS — The 32-bit Pentest Distro"
@@ -274,32 +283,32 @@ sh mkimage.sh \
     --extra-repository "https://dl-cdn.alpinelinux.org/alpine/edge/testing" \
     --profile necros \
     2>&1 | tee "$WORK_DIR/build.log" || {
-        warn "mkimage failed — falling back to manual ISO build"
+    warn "mkimage failed — falling back to manual ISO build"
 
-        # Fallback: create a simpler ISO using xorriso directly
-        log "Attempting manual ISO build..."
-        _iso_root="$WORK_DIR/iso-root"
-        mkdir -p "$_iso_root"
+    # Fallback: create a simpler ISO using xorriso directly
+    log "Attempting manual ISO build..."
+    _iso_root="$WORK_DIR/iso-root"
+    mkdir -p "$_iso_root"
 
-        # Download Alpine mini rootfs
-        _rootfs_url="https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VER}/releases/${BUILD_ARCH}/alpine-minirootfs-${ALPINE_VER}.0-${BUILD_ARCH}.tar.gz"
-        wget -q "$_rootfs_url" -O "$WORK_DIR/rootfs.tar.gz" 2>/dev/null || \
-            die "Cannot download Alpine rootfs"
+    # Download Alpine mini rootfs
+    _rootfs_url="https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VER}/releases/${BUILD_ARCH}/alpine-minirootfs-${ALPINE_VER}.0-${BUILD_ARCH}.tar.gz"
+    wget -q "$_rootfs_url" -O "$WORK_DIR/rootfs.tar.gz" 2>/dev/null ||
+        die "Cannot download Alpine rootfs"
 
-        # Extract and inject overlay
-        mkdir -p "$_iso_root/rootfs"
-        tar xzf "$WORK_DIR/rootfs.tar.gz" -C "$_iso_root/rootfs"
-        tar xzf "$APKOVL" -C "$_iso_root/rootfs"
+    # Extract and inject overlay
+    mkdir -p "$_iso_root/rootfs"
+    tar xzf "$WORK_DIR/rootfs.tar.gz" -C "$_iso_root/rootfs"
+    tar xzf "$APKOVL" -C "$_iso_root/rootfs"
 
-        # Create squashfs
-        mksquashfs "$_iso_root/rootfs" "$_iso_root/rootfs.squashfs" \
-            -comp xz -Xbcj x86 2>/dev/null || \
-            mksquashfs "$_iso_root/rootfs" "$_iso_root/rootfs.squashfs" 2>/dev/null
+    # Create squashfs
+    mksquashfs "$_iso_root/rootfs" "$_iso_root/rootfs.squashfs" \
+        -comp xz -Xbcj x86 2>/dev/null ||
+        mksquashfs "$_iso_root/rootfs" "$_iso_root/rootfs.squashfs" 2>/dev/null
 
-        ok "Squashfs created"
-        info "Note: Full bootable ISO requires ISOLINUX/GRUB setup."
-        info "For now, use the NecrOS overlay + Alpine Standard ISO."
-    }
+    ok "Squashfs created"
+    info "Note: Full bootable ISO requires ISOLINUX/GRUB setup."
+    info "For now, use the NecrOS overlay + Alpine Standard ISO."
+}
 
 # ---------------------------------------------------------------------------
 # Cleanup

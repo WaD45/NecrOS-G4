@@ -7,7 +7,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 _LIB="${SCRIPT_DIR}/../lib/necros-common.sh"
 [ -f "$_LIB" ] || _LIB="/usr/local/necros/lib/necros-common.sh"
 # shellcheck source=../lib/necros-common.sh
-. "$_LIB" 2>/dev/null || { echo "[!] Library not found"; exit 1; }
+. "$_LIB" 2>/dev/null || {
+    echo "[!] Library not found"
+    exit 1
+}
 
 require_root
 detect_arch
@@ -56,7 +59,7 @@ pkg_install httpie
 # --- Helper scripts ---
 mkdir -p /usr/local/necros/web
 
-cat > /usr/local/bin/necros-webrecon << 'SCRIPT'
+cat >/usr/local/bin/necros-webrecon <<'SCRIPT'
 #!/bin/sh
 # NecrOS — Quick Web Reconnaissance
 TARGET="$1"
@@ -79,7 +82,7 @@ echo ""
 SCRIPT
 chmod +x /usr/local/bin/necros-webrecon
 
-cat > /usr/local/bin/necros-dirscan << 'SCRIPT'
+cat >/usr/local/bin/necros-dirscan <<'SCRIPT'
 #!/bin/sh
 # NecrOS — Directory Scanner
 TARGET="$1"

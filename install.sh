@@ -26,7 +26,10 @@ trap cleanup EXIT INT TERM
 echo "[*] necros-g4 bootstrap — \"Resurrecting the Silicon Dead\""
 
 # --- Minimal preconditions (full checks run again in necro_install.sh) ------
-[ "$(id -u)" -eq 0 ] || { echo "[x] Ce script doit etre execute en tant que root."; exit 1; }
+[ "$(id -u)" -eq 0 ] || {
+    echo "[x] Ce script doit etre execute en tant que root."
+    exit 1
+}
 if [ ! -f /etc/alpine-release ] && [ ! -f /etc/adelie-release ]; then
     echo "[x] NecrOS necessite une base Alpine Linux ou Adelie Linux."
     exit 1
@@ -38,15 +41,18 @@ echo "[+] Telechargement de NecrOS depuis ${REPO} (${BRANCH})..."
 fetch_tarball() {
     # $1: downloader command prefix that writes stdout
     mkdir -p "$INSTALL_DIR"
-    "$@" "${REPO}/archive/refs/heads/${BRANCH}.tar.gz" \
-        | tar xz --strip-components=1 -C "$INSTALL_DIR"
+    "$@" "${REPO}/archive/refs/heads/${BRANCH}.tar.gz" |
+        tar xz --strip-components=1 -C "$INSTALL_DIR"
 }
 
 if command -v git >/dev/null 2>&1; then
-    git clone --depth 1 -b "$BRANCH" "${REPO}.git" "$INSTALL_DIR" 2>/dev/null \
-        || { echo "[!] git clone echoue, tentative via tarball..."; \
-             if command -v curl >/dev/null 2>&1; then fetch_tarball curl -fsSL; \
-             else fetch_tarball wget -qO-; fi; }
+    git clone --depth 1 -b "$BRANCH" "${REPO}.git" "$INSTALL_DIR" 2>/dev/null ||
+        {
+            echo "[!] git clone echoue, tentative via tarball..."
+            if command -v curl >/dev/null 2>&1; then
+                fetch_tarball curl -fsSL
+            else fetch_tarball wget -qO-; fi
+        }
 elif command -v curl >/dev/null 2>&1; then
     fetch_tarball curl -fsSL
 elif command -v wget >/dev/null 2>&1; then
@@ -56,7 +62,10 @@ else
     exit 1
 fi
 
-[ -f "$INSTALL_DIR/necro_install.sh" ] || { echo "[x] Telechargement incomplet."; exit 1; }
+[ -f "$INSTALL_DIR/necro_install.sh" ] || {
+    echo "[x] Telechargement incomplet."
+    exit 1
+}
 
 echo "[+] Lancement de l'installeur..."
 cd "$INSTALL_DIR"

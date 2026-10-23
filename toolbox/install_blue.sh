@@ -6,7 +6,10 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 _LIB="${SCRIPT_DIR}/../lib/necros-common.sh"
 [ -f "$_LIB" ] || _LIB="/usr/local/necros/lib/necros-common.sh"
-. "$_LIB" 2>/dev/null || { echo "[!] Library not found"; exit 1; }
+. "$_LIB" 2>/dev/null || {
+    echo "[!] Library not found"
+    exit 1
+}
 
 require_root
 detect_arch
@@ -57,7 +60,7 @@ log "Outils forensics de base..."
 pkg_install sleuthkit foremost
 
 # --- Helper scripts ---
-cat > /usr/local/bin/necros-seccheck << 'SCRIPT'
+cat >/usr/local/bin/necros-seccheck <<'SCRIPT'
 #!/bin/sh
 # NecrOS — Quick Security Check
 echo ""
@@ -89,7 +92,7 @@ echo ""
 SCRIPT
 chmod +x /usr/local/bin/necros-seccheck
 
-cat > /usr/local/bin/necros-audit << 'SCRIPT'
+cat >/usr/local/bin/necros-audit <<'SCRIPT'
 #!/bin/sh
 # NecrOS — Security Audit (Lynis wrapper)
 if command -v lynis >/dev/null 2>&1; then
@@ -102,7 +105,7 @@ chmod +x /usr/local/bin/necros-audit
 
 # --- Basic YARA rules ---
 mkdir -p /usr/local/necros/blue/yara
-cat > /usr/local/necros/blue/yara/suspicious.yar << 'YARRULE'
+cat >/usr/local/necros/blue/yara/suspicious.yar <<'YARRULE'
 rule SuspiciousShell {
     meta:
         description = "Detects common webshell patterns"

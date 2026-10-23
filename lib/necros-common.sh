@@ -12,9 +12,9 @@ _NECROS_LIB_LOADED=1
 # Version (read from VERSION file if available, else fallback)
 # ---------------------------------------------------------------------------
 if [ -f /usr/local/necros/VERSION ]; then
-    NECROS_VERSION=$(tr -d '[:space:]' < /usr/local/necros/VERSION)
+    NECROS_VERSION=$(tr -d '[:space:]' </usr/local/necros/VERSION)
 elif [ -f "$(dirname "$0")/../VERSION" ]; then
-    NECROS_VERSION=$(tr -d '[:space:]' < "$(dirname "$0")/../VERSION")
+    NECROS_VERSION=$(tr -d '[:space:]' <"$(dirname "$0")/../VERSION")
 else
     NECROS_VERSION="1.0.0"
 fi
@@ -32,15 +32,27 @@ if [ -t 1 ] && command -v tput >/dev/null 2>&1; then
     CYAN=$(tput setaf 6)
     BOLD=$(tput bold)
     NC=$(tput sgr0)
+elif [ -t 1 ]; then
+    # tty without tput (e.g. minimal busybox): materialise real ESC bytes so
+    # they render when passed to printf '%s' (NOT literal "\033[..." strings).
+    RED=$(printf '\033[0;31m')
+    GREEN=$(printf '\033[0;32m')
+    YELLOW=$(printf '\033[1;33m')
+    BLUE=$(printf '\033[0;34m')
+    MAGENTA=$(printf '\033[0;35m')
+    CYAN=$(printf '\033[0;36m')
+    BOLD=$(printf '\033[1m')
+    NC=$(printf '\033[0m')
 else
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[1;33m'
-    BLUE='\033[0;34m'
-    MAGENTA='\033[0;35m'
-    CYAN='\033[0;36m'
-    BOLD='\033[1m'
-    NC='\033[0m'
+    # Not a terminal (pipe, CI, log): no colour at all, clean plain output.
+    RED=''
+    GREEN=''
+    YELLOW=''
+    BLUE=''
+    MAGENTA=''
+    CYAN=''
+    BOLD=''
+    NC=''
 fi
 export RED GREEN YELLOW BLUE MAGENTA CYAN BOLD NC
 
@@ -75,17 +87,30 @@ detect_base_distro() {
 NECROS_LOG="/var/log/necros.log"
 
 _log_write() {
-    local _lvl="$1"; shift
+    local _lvl="$1"
+    shift
     printf '%s [%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$_lvl" "$*" \
-        >> "$NECROS_LOG" 2>/dev/null || true
+        >>"$NECROS_LOG" 2>/dev/null || true
 }
 
-log()   { _log_write "INFO"  "$@"; printf '%s[+]%s %s\n' "$GREEN"  "$NC" "$*"; }
-warn()  { _log_write "WARN"  "$@"; printf '%s[!]%s %s\n' "$YELLOW" "$NC" "$*"; }
-err()   { _log_write "ERROR" "$@"; printf '%s[✗]%s %s\n' "$RED"    "$NC" "$*"; }
-die()   { err "$@"; exit 1; }
-info()  { printf '%s[*]%s %s\n' "$CYAN" "$NC" "$*"; }
-ok()    { printf '%s[✓]%s %s\n' "$GREEN" "$NC" "$*"; }
+log() {
+    _log_write "INFO" "$@"
+    printf '%s[+]%s %s\n' "$GREEN" "$NC" "$*"
+}
+warn() {
+    _log_write "WARN" "$@"
+    printf '%s[!]%s %s\n' "$YELLOW" "$NC" "$*"
+}
+err() {
+    _log_write "ERROR" "$@"
+    printf '%s[✗]%s %s\n' "$RED" "$NC" "$*"
+}
+die() {
+    err "$@"
+    exit 1
+}
+info() { printf '%s[*]%s %s\n' "$CYAN" "$NC" "$*"; }
+ok() { printf '%s[✓]%s %s\n' "$GREEN" "$NC" "$*"; }
 
 # ---------------------------------------------------------------------------
 # Pinned-sources manifest (URLs + checksums). Best-effort location; if it is
@@ -97,7 +122,10 @@ for _cand in \
     "$(dirname "$0")/lib/necros-sources.sh" \
     "$(dirname "$0")/../lib/necros-sources.sh" \
     "$(dirname "$0")/necros-sources.sh"; do
-    if [ -f "$_cand" ]; then . "$_cand"; break; fi
+    if [ -f "$_cand" ]; then
+        . "$_cand"
+        break
+    fi
 done
 unset _cand
 
@@ -125,12 +153,12 @@ write_file() {
     _wf_dest="$1"
     if necros_is_dry_run; then
         printf '%s[dry-run]%s écrirait %s\n' "$YELLOW" "$NC" "$_wf_dest"
-        cat >/dev/null   # drain stdin so the heredoc is consumed
+        cat >/dev/null # drain stdin so the heredoc is consumed
         unset _wf_dest
         return 0
     fi
     mkdir -p "$(dirname "$_wf_dest")" 2>/dev/null || true
-    cat > "$_wf_dest"
+    cat >"$_wf_dest"
     unset _wf_dest
 }
 
@@ -170,7 +198,9 @@ necros_fetch() {
     # necros_fetch URL DEST [SHA256]
     #   Download URL to DEST, verifying SHA-256 when provided. Refuses to keep
     #   an unverified file unless NECROS_ALLOW_UNVERIFIED=1.
-    _nf_url="$1"; _nf_dest="$2"; _nf_sha="${3:-}"
+    _nf_url="$1"
+    _nf_dest="$2"
+    _nf_sha="${3:-}"
 
     if necros_is_dry_run; then
         if [ -n "$_nf_sha" ]; then
@@ -234,27 +264,27 @@ necros_fetch() {
 detect_arch() {
     NECROS_ARCH=$(uname -m)
     case "$NECROS_ARCH" in
-        i686|i386|i486|i586)
+        i686 | i386 | i486 | i586)
             NECROS_ARCH_FAMILY="x86"
             NECROS_BITS=32
             ;;
-        x86_64|amd64)
+        x86_64 | amd64)
             NECROS_ARCH_FAMILY="x86_64"
             NECROS_BITS=64
             ;;
-        ppc|powerpc|ppc32)
+        ppc | powerpc | ppc32)
             NECROS_ARCH_FAMILY="powerpc"
             NECROS_BITS=32
             ;;
-        ppc64|ppc64le|powerpc64|powerpc64le)
+        ppc64 | ppc64le | powerpc64 | powerpc64le)
             NECROS_ARCH_FAMILY="powerpc"
             NECROS_BITS=64
             ;;
-        aarch64|arm64)
+        aarch64 | arm64)
             NECROS_ARCH_FAMILY="aarch64"
             NECROS_BITS=64
             ;;
-        armv7l|armv6l)
+        armv7l | armv6l)
             NECROS_ARCH_FAMILY="arm"
             NECROS_BITS=32
             ;;
@@ -324,7 +354,7 @@ require_mem() {
     local _min="${1:-256}"
     local _actual
     _actual=$(get_mem_mb)
-    [ "$_actual" -ge "$_min" ] 2>/dev/null || \
+    [ "$_actual" -ge "$_min" ] 2>/dev/null ||
         die "RAM insuffisante: ${_actual}MB (minimum ${_min}MB)"
 }
 
@@ -332,7 +362,7 @@ require_disk() {
     local _min="${1:-500}" _mount="${2:-/}"
     local _actual
     _actual=$(get_disk_free_mb "$_mount")
-    [ "$_actual" -ge "$_min" ] 2>/dev/null || \
+    [ "$_actual" -ge "$_min" ] 2>/dev/null ||
         die "Espace disque insuffisant: ${_actual}MB libre sur $_mount (minimum ${_min}MB)"
 }
 
@@ -349,7 +379,7 @@ pkg_install() {
     fi
     for _pkg in "$@"; do
         if ! apk info -e "$_pkg" >/dev/null 2>&1; then
-            apk add --no-cache "$_pkg" >> "$NECROS_LOG" 2>&1 || {
+            apk add --no-cache "$_pkg" >>"$NECROS_LOG" 2>&1 || {
                 warn "Paquet indisponible: $_pkg"
                 _failed="$_failed $_pkg"
             }
@@ -367,7 +397,7 @@ pip_install() {
         printf '%s[dry-run]%s pip3 install:%s\n' "$YELLOW" "$NC" " $*"
         return 0
     fi
-    pip3 install --break-system-packages --quiet "$@" >> "$NECROS_LOG" 2>&1 || \
+    pip3 install --break-system-packages --quiet "$@" >>"$NECROS_LOG" 2>&1 ||
         warn "pip install échoué pour: $*"
 }
 
@@ -383,13 +413,13 @@ ensure_swap() {
         return 0
     fi
     if [ "$(swapon --show --noheadings 2>/dev/null | wc -l)" -gt 0 ]; then
-        return 0  # Swap already active
+        return 0 # Swap already active
     fi
     if [ ! -f "$_swapfile" ]; then
         info "Création d'un swap de ${_size_mb}MB..."
         dd if=/dev/zero of="$_swapfile" bs=1M count="$_size_mb" status=none 2>/dev/null
         chmod 600 "$_swapfile"
-        mkswap "$_swapfile" >> "$NECROS_LOG" 2>&1
+        mkswap "$_swapfile" >>"$NECROS_LOG" 2>&1
     fi
     if swapon "$_swapfile" 2>/dev/null; then
         log "Swap activé (${_size_mb}MB)"
@@ -434,7 +464,8 @@ is_done() {
 
 run_once() {
     # Usage: run_once "step_name" command args...
-    local _step="$1"; shift
+    local _step="$1"
+    shift
     if is_done "$_step"; then
         info "Étape déjà complétée: $_step (skip)"
         return 0
@@ -448,7 +479,7 @@ run_once() {
 # ---------------------------------------------------------------------------
 necros_banner() {
     printf '%s' "$CYAN"
-    cat << 'BANNER'
+    cat <<'BANNER'
 
     ███╗   ██╗███████╗ ██████╗██████╗  ██████╗ ███████╗
     ████╗  ██║██╔════╝██╔════╝██╔══██╗██╔═══██╗██╔════╝

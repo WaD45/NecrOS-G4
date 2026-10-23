@@ -6,7 +6,10 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 _LIB="${SCRIPT_DIR}/../lib/necros-common.sh"
 [ -f "$_LIB" ] || _LIB="/usr/local/necros/lib/necros-common.sh"
-. "$_LIB" 2>/dev/null || { echo "[!] Library not found"; exit 1; }
+. "$_LIB" 2>/dev/null || {
+    echo "[!] Library not found"
+    exit 1
+}
 
 require_root
 detect_arch
@@ -27,7 +30,7 @@ pkg_install gdb strace ltrace
 if [ ! -f /root/.gef.py ]; then
     info "Installation de GEF (pinned)..."
     if necros_fetch "$NECROS_GEF_URL" /root/.gef.py "$NECROS_GEF_SHA"; then
-        echo "source ~/.gef.py" > /root/.gdbinit
+        echo "source ~/.gef.py" >/root/.gdbinit
         ok "GEF installé"
     else
         warn "GEF non installé (téléchargement ou vérification échoué)"
@@ -47,9 +50,9 @@ if ! command -v r2 >/dev/null 2>&1; then
         _tmp="/tmp/necros-r2-$$"
         mkdir -p "$_tmp"
         if git clone --depth 1 --branch "$NECROS_R2_TAG" \
-            https://github.com/radareorg/radare2.git "$_tmp/r2" >> "$NECROS_LOG" 2>&1; then
+            https://github.com/radareorg/radare2.git "$_tmp/r2" >>"$NECROS_LOG" 2>&1; then
             # Build in a subshell so a failed cd cannot run install in the wrong dir.
-            if ( cd "$_tmp/r2" && sys/install.sh ) >> "$NECROS_LOG" 2>&1; then
+            if (cd "$_tmp/r2" && sys/install.sh) >>"$NECROS_LOG" 2>&1; then
                 ok "radare2 ${NECROS_R2_TAG} compilé et installé"
             else
                 warn "Compilation de radare2 échouée"
@@ -81,7 +84,7 @@ else
 fi
 
 # --- Helper scripts ---
-cat > /usr/local/bin/necros-bininfo << 'SCRIPT'
+cat >/usr/local/bin/necros-bininfo <<'SCRIPT'
 #!/bin/sh
 # NecrOS — Quick Binary Analysis
 BIN="$1"
@@ -108,7 +111,7 @@ chmod +x /usr/local/bin/necros-bininfo
 
 # --- Pwntools template ---
 mkdir -p /usr/local/necros/re
-cat > /usr/local/necros/re/pwn_template.py << 'PYTEMPLATE'
+cat >/usr/local/necros/re/pwn_template.py <<'PYTEMPLATE'
 #!/usr/bin/env python3
 """NecrOS pwntools exploit template."""
 from pwn import *

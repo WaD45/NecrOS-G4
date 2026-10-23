@@ -11,8 +11,11 @@ _TOTAL=0
 
 _test() {
     _TOTAL=$((_TOTAL + 1))
-    local _name="$1"; shift
-    if eval "$@" >/dev/null 2>&1; then
+    local _name="$1"
+    shift
+    # Assertions are passed as a single shell expression string; eval the
+    # joined args ("$*"), which is the intended behaviour here.
+    if eval "$*" >/dev/null 2>&1; then
         printf '  \033[0;32m✓\033[0m %s\n' "$_name"
         _PASS=$((_PASS + 1))
     else
@@ -42,7 +45,7 @@ _test "Library is sourceable" ". '$_LIB'"
 # Version
 # ---------------------------------------------------------------------------
 _test "NECROS_VERSION is set" "[ -n '$NECROS_VERSION' ]"
-_ver_file=$(tr -d '[:space:]' < "$SCRIPT_DIR/../VERSION" 2>/dev/null)
+_ver_file=$(tr -d '[:space:]' <"$SCRIPT_DIR/../VERSION" 2>/dev/null)
 _ver_var=$(printf '%s' "$NECROS_VERSION" | tr -d '[:space:]')
 _test "NECROS_VERSION matches VERSION file" "[ '$_ver_file' = '$_ver_var' ]"
 
@@ -59,16 +62,16 @@ _test "NECROS_BITS is 32 or 64" \
 # Functions exist
 # ---------------------------------------------------------------------------
 for _fn in log warn err die info ok get_mem_mb get_disk_free_mb \
-           necros_banner detect_arch is_32bit is_lowmem is_powerpc \
-           is_adelie is_alpine mark_done is_done run_once ensure_swap \
-           require_supported_base; do
+    necros_banner detect_arch is_32bit is_lowmem is_powerpc \
+    is_adelie is_alpine mark_done is_done run_once ensure_swap \
+    require_supported_base; do
     _test "Function '$_fn' is defined" "type '$_fn' >/dev/null 2>&1"
 done
 
 # ---------------------------------------------------------------------------
 # Colour variables (may be empty in non-tty contexts; test definition only)
 # ---------------------------------------------------------------------------
-_test "Colour variables exported" "true"  # Colours are optional in non-tty
+_test "Colour variables exported" "true" # Colours are optional in non-tty
 
 # ---------------------------------------------------------------------------
 # System probes

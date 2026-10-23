@@ -7,13 +7,22 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 _LIB="${SCRIPT_DIR}/../lib/necros-common.sh"
 [ -f "$_LIB" ] || _LIB="/usr/local/necros/lib/necros-common.sh"
 # shellcheck source=../lib/necros-common.sh
+# Fallback palette/functions (mirror the library) only used when lib is absent.
+# shellcheck disable=SC2034
 . "$_LIB" 2>/dev/null || {
-    RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
-    log()  { printf "${GREEN}[+]${NC} %s\n" "$1"; }
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    CYAN='\033[0;36m'
+    NC='\033[0m'
+    log() { printf "${GREEN}[+]${NC} %s\n" "$1"; }
     warn() { printf "${YELLOW}[!]${NC} %s\n" "$1"; }
-    err()  { printf "${RED}[✗]${NC} %s\n" "$1"; }
-    die()  { err "$@"; exit 1; }
-    ok()   { printf "${GREEN}[✓]${NC} %s\n" "$1"; }
+    err() { printf "${RED}[✗]${NC} %s\n" "$1"; }
+    die() {
+        err "$@"
+        exit 1
+    }
+    ok() { printf "${GREEN}[✓]${NC} %s\n" "$1"; }
 }
 
 REPO_URL="https://github.com/WaD45/NecrOS-G4"
@@ -70,10 +79,10 @@ pull_update() {
     necros_on_exit "rm -rf '$TMP_DIR'"
 
     if command -v git >/dev/null 2>&1; then
-        git clone --depth 1 "$REPO_URL.git" "$TMP_DIR/repo" >> "$NECROS_LOG" 2>&1 || \
+        git clone --depth 1 "$REPO_URL.git" "$TMP_DIR/repo" >>"$NECROS_LOG" 2>&1 ||
             die "Échec du clone git"
     else
-        wget -q "${REPO_URL}/archive/refs/heads/main.tar.gz" -O "$TMP_DIR/necros.tar.gz" || \
+        wget -q "${REPO_URL}/archive/refs/heads/main.tar.gz" -O "$TMP_DIR/necros.tar.gz" ||
             die "Échec du téléchargement"
         tar xzf "$TMP_DIR/necros.tar.gz" -C "$TMP_DIR" || die "Échec de l'extraction"
         mv "$TMP_DIR"/NecrOS-* "$TMP_DIR/repo"
@@ -106,17 +115,23 @@ pull_update() {
 update_system() {
     require_root
     log "Mise à jour des paquets système (${NECROS_BASE_DISTRO})..."
-    apk update >> "$NECROS_LOG" 2>&1
-    apk upgrade >> "$NECROS_LOG" 2>&1
+    apk update >>"$NECROS_LOG" 2>&1
+    apk upgrade >>"$NECROS_LOG" 2>&1
     ok "Paquets système mis à jour"
 }
 
 # CLI
 case "${1:---check}" in
-    check|--check) check_update ;;
-    pull)          pull_update ;;
-    system)        update_system ;;
-    all)           pull_update; update_system ;;
-    -h|--help)     show_help ;;
-    *)             show_help; exit 1 ;;
+    check | --check) check_update ;;
+    pull) pull_update ;;
+    system) update_system ;;
+    all)
+        pull_update
+        update_system
+        ;;
+    -h | --help) show_help ;;
+    *)
+        show_help
+        exit 1
+        ;;
 esac

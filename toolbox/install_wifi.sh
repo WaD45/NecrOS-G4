@@ -7,7 +7,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 _LIB="${SCRIPT_DIR}/../lib/necros-common.sh"
 [ -f "$_LIB" ] || _LIB="/usr/local/necros/lib/necros-common.sh"
 # shellcheck source=../lib/necros-common.sh
-. "$_LIB" 2>/dev/null || { echo "[!] Library not found"; exit 1; }
+. "$_LIB" 2>/dev/null || {
+    echo "[!] Library not found"
+    exit 1
+}
 
 require_root
 detect_arch
@@ -50,7 +53,7 @@ fi
 
 # --- udev rules for RTL-SDR ---
 if [ -d "/etc/udev/rules.d" ]; then
-    cat > /etc/udev/rules.d/20-rtlsdr.rules << 'EOF'
+    cat >/etc/udev/rules.d/20-rtlsdr.rules <<'EOF'
 SUBSYSTEM=="usb", ATTRS{idVendor}=="0bda", ATTRS{idProduct}=="2832", MODE:="0666"
 SUBSYSTEM=="usb", ATTRS{idVendor}=="0bda", ATTRS{idProduct}=="2838", MODE:="0666"
 EOF
@@ -62,7 +65,7 @@ pip_install scapy
 # --- Helper scripts ---
 mkdir -p /usr/local/necros/wifi
 
-cat > /usr/local/bin/necros-monitor << 'SCRIPT'
+cat >/usr/local/bin/necros-monitor <<'SCRIPT'
 #!/bin/sh
 # NecrOS — Mode Monitor Helper
 if [ $# -lt 2 ]; then
@@ -91,7 +94,7 @@ esac
 SCRIPT
 chmod +x /usr/local/bin/necros-monitor
 
-cat > /usr/local/bin/necros-wifiscan << 'SCRIPT'
+cat >/usr/local/bin/necros-wifiscan <<'SCRIPT'
 #!/bin/sh
 # NecrOS — WiFi Scanner
 IFACE="${1:-wlan0}"
