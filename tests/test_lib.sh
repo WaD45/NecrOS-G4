@@ -100,6 +100,7 @@ echo "  Script Syntax Checks"
 echo "  ====================="
 for _script in \
     "$SCRIPT_DIR/../necro_install.sh" \
+    "$SCRIPT_DIR/../build_iso.sh" \
     "$SCRIPT_DIR/../core/vanish.sh" \
     "$SCRIPT_DIR/../core/payload.sh" \
     "$SCRIPT_DIR/../core/recon.sh" \
@@ -118,6 +119,50 @@ for _script in "$SCRIPT_DIR"/../toolbox/install_*.sh; do
     _name="$(basename "$_script")"
     _test "$_name syntax OK" "sh -n '$_script'"
 done
+
+# ---------------------------------------------------------------------------
+# Security helpers: pinned sources, checksum verification, dry-run
+# ---------------------------------------------------------------------------
+echo ""
+echo "  Security Helper Checks"
+echo "  ======================"
+
+_test "necros-sources.sh is sourceable" ". '$SCRIPT_DIR/../lib/necros-sources.sh'"
+_test "NECROS_GEF_SHA is 64 hex chars" \
+    "printf '%s' \"\$NECROS_GEF_SHA\" | grep -qE '^[0-9a-f]{64}\$'"
+_test "NECROS_ROCKYOU_SHA is 64 hex chars" \
+    "printf '%s' \"\$NECROS_ROCKYOU_SHA\" | grep -qE '^[0-9a-f]{64}\$'"
+_test "necros_fetch is defined" "type necros_fetch >/dev/null 2>&1"
+_test "necros_verify_sha256 is defined" "type necros_verify_sha256 >/dev/null 2>&1"
+
+# sha256_of agrees with sha256sum on a known file
+_sec_tmp="/tmp/necros-test-sec-$$"
+mkdir -p "$_sec_tmp"
+printf 'necros' >"$_sec_tmp/sample"
+_got_sha=$(sha256_of "$_sec_tmp/sample")
+_ref_sha=$(sha256sum "$_sec_tmp/sample" | cut -d' ' -f1)
+_test "sha256_of matches sha256sum" "[ '$_got_sha' = '$_ref_sha' ]"
+
+# Checksum verification accepts the right hash and rejects a wrong one
+_test "verify_sha256 accepts correct hash" \
+    "necros_verify_sha256 '$_sec_tmp/sample' '$_got_sha'"
+_test "verify_sha256 rejects wrong hash" \
+    "! necros_verify_sha256 '$_sec_tmp/sample' '0000000000000000000000000000000000000000000000000000000000000000'"
+
+# Fetch refuses an unverified download by default (before any network use)
+_test "necros_fetch refuses missing checksum" \
+    "! ( NECROS_ALLOW_UNVERIFIED=0; necros_fetch 'https://example.invalid/x' '$_sec_tmp/out1' '' )"
+_test "refused fetch wrote nothing" "[ ! -f '$_sec_tmp/out1' ]"
+
+# Dry-run never downloads
+_test "necros_fetch dry-run returns 0" \
+    "( NECROS_DRY_RUN=1; necros_fetch 'https://example.invalid/x' '$_sec_tmp/out2' '$_got_sha' )"
+_test "dry-run wrote nothing" "[ ! -f '$_sec_tmp/out2' ]"
+_test "run_cmd dry-run does not execute" \
+    "( NECROS_DRY_RUN=1; run_cmd touch '$_sec_tmp/nope' ); [ ! -f '$_sec_tmp/nope' ]"
+_test "pkg_install dry-run returns 0" "( NECROS_DRY_RUN=1; pkg_install foo )"
+
+rm -rf "$_sec_tmp"
 
 # ---------------------------------------------------------------------------
 # Summary

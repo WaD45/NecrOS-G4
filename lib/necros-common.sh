@@ -182,6 +182,22 @@ sha256_of() {
     fi
 }
 
+necros_verify_sha256() {
+    # necros_verify_sha256 FILE EXPECTED_SHA -> 0 only if the file's SHA-256
+    # exists and equals EXPECTED_SHA. Separated out so it is unit-testable
+    # without any network access.
+    _vs_got="$(sha256_of "$1")" || {
+        unset _vs_got
+        return 1
+    }
+    if [ -n "$_vs_got" ] && [ "$_vs_got" = "$2" ]; then
+        unset _vs_got
+        return 0
+    fi
+    unset _vs_got
+    return 1
+}
+
 _necros_download_to() {
     # _necros_download_to URL DEST  — raw fetch, no verification. Internal.
     if command -v curl >/dev/null 2>&1; then
@@ -232,23 +248,15 @@ necros_fetch() {
     fi
 
     if [ -n "$_nf_sha" ]; then
-        _nf_got="$(sha256_of "$_nf_tmp")"
-        if [ -z "$_nf_got" ]; then
-            err "Aucun outil de hash disponible pour vérifier $_nf_url — abandon"
-            rm -f "$_nf_tmp"
-            unset _nf_url _nf_dest _nf_sha _nf_tmp _nf_got
-            return 1
-        fi
-        if [ "$_nf_got" != "$_nf_sha" ]; then
-            err "Checksum invalide pour $_nf_url"
+        if ! necros_verify_sha256 "$_nf_tmp" "$_nf_sha"; then
+            err "Checksum invalide (ou pas d'outil de hash) pour $_nf_url"
             err "  attendu: $_nf_sha"
-            err "  obtenu:  $_nf_got"
+            err "  obtenu:  $(sha256_of "$_nf_tmp" 2>/dev/null)"
             rm -f "$_nf_tmp"
-            unset _nf_url _nf_dest _nf_sha _nf_tmp _nf_got
+            unset _nf_url _nf_dest _nf_sha _nf_tmp
             return 1
         fi
         ok "Checksum vérifié: $(basename "$_nf_dest")"
-        unset _nf_got
     else
         warn "Téléchargement NON vérifié (override actif): $_nf_url"
     fi
