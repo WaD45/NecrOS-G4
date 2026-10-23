@@ -9,13 +9,20 @@ _LIB="${SCRIPT_DIR}/../lib/necros-common.sh"
 [ -f "$_LIB" ] || _LIB="/usr/local/necros/lib/necros-common.sh"
 # shellcheck source=../lib/necros-common.sh
 . "$_LIB" 2>/dev/null || {
-    RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
-    log()  { printf "${GREEN}[+]${NC} %s\n" "$1"; }
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    CYAN='\033[0;36m'
+    NC='\033[0m'
+    log() { printf "${GREEN}[+]${NC} %s\n" "$1"; }
     warn() { printf "${YELLOW}[!]${NC} %s\n" "$1"; }
-    err()  { printf "${RED}[✗]${NC} %s\n" "$1"; }
-    die()  { err "$@"; exit 1; }
+    err() { printf "${RED}[✗]${NC} %s\n" "$1"; }
+    die() {
+        err "$@"
+        exit 1
+    }
     info() { printf "${CYAN}[*]${NC} %s\n" "$1"; }
-    ok()   { printf "${GREEN}[✓]${NC} %s\n" "$1"; }
+    ok() { printf "${GREEN}[✓]${NC} %s\n" "$1"; }
 }
 
 require_root
@@ -23,7 +30,7 @@ require_root
 # ---------------------------------------------------------------------------
 banner_vanish() {
     printf '%s' "$RED"
-    cat << 'EOF'
+    cat <<'EOF'
 
     ██╗   ██╗ █████╗ ███╗   ██╗██╗███████╗██╗  ██╗
     ██║   ██║██╔══██╗████╗  ██║██║██╔════╝██║  ██║
@@ -47,7 +54,7 @@ clear_logs() {
         /var/log/secure /var/log/kern.log /var/log/daemon.log \
         /var/log/wtmp /var/log/btmp /var/log/lastlog \
         /var/log/faillog /var/log/dmesg; do
-        [ -f "$_f" ] && : > "$_f" 2>/dev/null
+        [ -f "$_f" ] && : >"$_f" 2>/dev/null
     done
     # OpenRC logs
     find /var/log -name "*.log" -type f -exec sh -c ': > "$1"' _ {} \; 2>/dev/null
@@ -66,7 +73,7 @@ clear_history() {
         -o -name ".python_history" -o -name ".mysql_history" \
         -o -name ".psql_history" -o -name ".sqlite_history" \
         -o -name ".wget-hsts" -o -name ".recently-used.xbel" \
-    \) -type f -delete 2>/dev/null
+        \) -type f -delete 2>/dev/null
     # Kill current shell history
     unset HISTFILE
     export HISTSIZE=0 HISTFILESIZE=0 SAVEHIST=0
@@ -76,11 +83,11 @@ clear_history() {
 clear_connections() {
     info "Effacement des traces de connexion..."
     find /root /home -maxdepth 3 -name "known_hosts" -type f -delete 2>/dev/null
-    find /root /home -maxdepth 3 -name "authorized_keys" -type f 2>/dev/null | \
+    find /root /home -maxdepth 3 -name "authorized_keys" -type f 2>/dev/null |
         while read -r _f; do warn "authorized_keys trouvé: $_f (non supprimé)"; done
-    : > /var/log/lastlog 2>/dev/null
-    : > /var/log/wtmp 2>/dev/null
-    : > /var/run/utmp 2>/dev/null
+    : >/var/log/lastlog 2>/dev/null
+    : >/var/log/wtmp 2>/dev/null
+    : >/var/run/utmp 2>/dev/null
     ok "Traces de connexion effacées"
 }
 
@@ -88,7 +95,7 @@ clear_cache() {
     info "Effacement du cache et fichiers temporaires..."
     # Drop kernel caches
     sync
-    echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+    echo 3 >/proc/sys/vm/drop_caches 2>/dev/null || true
     # Temp files
     rm -rf /tmp/* /var/tmp/* 2>/dev/null
     # APK cache
@@ -105,9 +112,9 @@ clear_network_traces() {
     # ARP cache
     ip neigh flush all 2>/dev/null || arp -d -a 2>/dev/null || true
     # Conntrack
-    command -v conntrack >/dev/null 2>&1 && conntrack -F 2>/dev/null || true
+    if command -v conntrack >/dev/null 2>&1; then conntrack -F 2>/dev/null || true; fi
     # DNS cache (if dnsmasq)
-    command -v killall >/dev/null 2>&1 && killall -HUP dnsmasq 2>/dev/null || true
+    if command -v killall >/dev/null 2>&1; then killall -HUP dnsmasq 2>/dev/null || true; fi
     # Flush routing cache
     ip route flush cache 2>/dev/null || true
     ok "Traces réseau effacées"
@@ -115,7 +122,7 @@ clear_network_traces() {
 
 clear_necros_traces() {
     info "Effacement des traces NecrOS..."
-    : > /var/log/necros.log 2>/dev/null
+    : >/var/log/necros.log 2>/dev/null
     rm -rf /var/lib/necros/markers 2>/dev/null
     ok "Traces NecrOS effacées"
 }
@@ -155,7 +162,7 @@ mode_stealth() {
 
 mode_nuclear() {
     printf '%s' "$RED"
-    cat << 'NUKE'
+    cat <<'NUKE'
     ╔══════════════════════════════════════════════════════╗
     ║   ⚠  NUCLEAR MODE — DESTRUCTION TOTALE  ⚠          ║
     ║                                                      ║
@@ -174,7 +181,10 @@ NUKE
     if [ "$FORCE" != "1" ]; then
         printf '%sTapez VANISH pour confirmer: %s' "$YELLOW" "$NC"
         read -r _confirm
-        [ "$_confirm" = "VANISH" ] || { err "Annulé."; exit 1; }
+        [ "$_confirm" = "VANISH" ] || {
+            err "Annulé."
+            exit 1
+        }
     fi
 
     printf '%s[NUCLEAR]%s Initialisation de la destruction...\n' "$RED" "$NC"
@@ -199,7 +209,7 @@ mode_status() {
 
     printf '  Historiques:\n'
     find /root /home -maxdepth 3 -name ".*_history" -type f 2>/dev/null | while read -r _f; do
-        printf '    %s (%s)\n' "$_f" "$(wc -l < "$_f" 2>/dev/null || echo '?') lignes"
+        printf '    %s (%s)\n' "$_f" "$(wc -l <"$_f" 2>/dev/null || echo '?') lignes"
     done
 
     printf '  Cache:\n'
@@ -243,10 +253,13 @@ FORCE=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        ghost|stealth|nuclear|status) MODE="$1" ;;
-        -y|--yes) FORCE=1 ;;
-        -q|--quiet) exec >/dev/null ;;
-        -h|--help) show_help; exit 0 ;;
+        ghost | stealth | nuclear | status) MODE="$1" ;;
+        -y | --yes) FORCE=1 ;;
+        -q | --quiet) exec >/dev/null ;;
+        -h | --help)
+            show_help
+            exit 0
+            ;;
         *) warn "Option inconnue: $1" ;;
     esac
     shift
@@ -255,8 +268,8 @@ done
 banner_vanish
 
 case "$MODE" in
-    ghost)   mode_ghost ;;
+    ghost) mode_ghost ;;
     stealth) mode_stealth ;;
     nuclear) mode_nuclear ;;
-    status)  mode_status ;;
+    status) mode_status ;;
 esac

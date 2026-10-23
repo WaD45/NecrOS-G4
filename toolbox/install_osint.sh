@@ -6,10 +6,18 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 _LIB="${SCRIPT_DIR}/../lib/necros-common.sh"
 [ -f "$_LIB" ] || _LIB="/usr/local/necros/lib/necros-common.sh"
-. "$_LIB" 2>/dev/null || { echo "[!] Library not found"; exit 1; }
+. "$_LIB" 2>/dev/null || {
+    echo "[!] Library not found"
+    exit 1
+}
 
 require_root
 detect_arch
+
+if necros_is_dry_run; then
+    info "[dry-run] $(basename "$0"): aucun changement — installerait les paquets et helpers de cette toolbox"
+    exit 0
+fi
 
 necros_banner
 log "Installation de la Toolbox OSINT..."
@@ -32,8 +40,9 @@ log "Énumération de sous-domaines..."
 if ! is_32bit && ! is_lowmem; then
     # Try to get subfinder
     if command -v go >/dev/null 2>&1; then
-        go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest 2>/dev/null && \
+        if go install -v "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@${NECROS_SUBFINDER_VERSION}" 2>/dev/null; then
             cp "$(go env GOPATH)/bin/subfinder" /usr/local/bin/ 2>/dev/null || true
+        fi
     fi
 fi
 
@@ -52,7 +61,7 @@ pip_install shodan
 pip_install theharvester 2>/dev/null || info "theHarvester non disponible via pip"
 
 # --- Helper scripts ---
-cat > /usr/local/bin/necros-osint << 'SCRIPT'
+cat >/usr/local/bin/necros-osint <<'SCRIPT'
 #!/bin/sh
 # NecrOS — Quick OSINT on a domain
 TARGET="$1"

@@ -9,11 +9,21 @@ NecrOS can be ported to PowerBook G4 hardware in two phases:
 
 This repository now covers phase 1 directly and exposes a build artifact for manual deployment.
 
+## Why the base must be Adélie, not Alpine
+
+The PowerBook G4 is **32-bit PowerPC**. Alpine Linux does not build a 32-bit
+PowerPC port at all — its PowerPC architecture is `ppc64le` only. So a G4
+**cannot** run an Alpine base. Adélie Linux keeps the same musl/apk/OpenRC
+model but *does* ship a 32-bit `ppc` port, which is why it is the target base
+for G4 hardware. Package availability per architecture (and the Alpine vs
+Adélie split) is tracked in [package-matrix.md](package-matrix.md).
+
 ## Current status
 
 - `powerpc` / `ppc` architectures are detected by the shared runtime library.
 - The installer warns when running on PowerPC and avoids x86-specific GUI assumptions.
-- `build_iso.sh --arch ppc` produces a deployment bundle rather than a misleading x86-style ISO.
+- `build_iso.sh --arch ppc` produces a deployment bundle rather than a misleading x86-style ISO
+  (and no longer pulls the x86 ISO toolchain to do so).
 
 ## Why no PPC ISO yet
 

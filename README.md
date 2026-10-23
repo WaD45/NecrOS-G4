@@ -2,7 +2,7 @@
   <img src="necros powerbook g4.png" alt="necros-g4 Logo" width="1000"/>
 </p>
 
-# necros-g4 v1.0
+# necros-g4 v1.1
 
 ### "Resurrecting the Silicon Dead"
 
@@ -48,29 +48,42 @@ Les distributions de sécurité modernes (Kali, Parrot, BlackArch) sont devenues
 | Disque | 500 MB | 5 GB |
 | Base | Alpine Linux 3.18+ ou Adélie Linux | Alpine 3.20+ |
 
-### Méthode 1 : Installation rapide (réseau)
+> **Deux scripts, deux rôles.** `install.sh` est un *bootstrap réseau* : il ne
+> fait que récupérer le dépôt (via `git clone`, avec repli tarball) puis appeler
+> l'installeur. `necro_install.sh` est l'**installeur qui fait foi** — toute la
+> logique d'installation est là.
+>
+> **Intégrité.** NecrOS ne fait plus de `curl … | sh` sans vérification : tout
+> ce qui est téléchargé pendant l'installation (GEF, rockyou, …) est vérifié par
+> SHA-256 épinglé dans `lib/necros-sources.sh`. Un téléchargement sans checksum
+> est refusé par défaut.
+
+### Méthode 1 : clone vérifié (recommandé)
 
 ```bash
 # Sur un Alpine Linux ou Adélie Linux fraîchement installé :
-wget -qO- https://raw.githubusercontent.com/WaD45/NecrOS-G4/main/install.sh | sh
-```
-
-### Méthode 2 : Installation manuelle
-
-```bash
-# 1. Installer Alpine Linux (mode "sys") ou Adélie Linux
-# 2. Cloner le dépôt
 git clone https://github.com/WaD45/NecrOS-G4.git
 cd NecrOS-G4
+sh necro_install.sh --dry-run      # Voir ce qui serait fait, sans rien changer
+sh necro_install.sh                # Installation réelle (root)
+```
 
-# 3. Lancer l'installation
-sh necro_install.sh
+### Méthode 2 : bootstrap réseau (one-liner)
 
-# Options disponibles :
-sh necro_install.sh --minimal    # Core seulement, pas de GUI
+```bash
+# Récupère le dépôt puis lance necro_install.sh. Options passées telles quelles.
+wget -qO- https://raw.githubusercontent.com/WaD45/NecrOS-G4/main/install.sh | sh
+wget -qO- .../install.sh | sh -s -- --minimal --dry-run
+```
+
+### Options de `necro_install.sh`
+
+```bash
+sh necro_install.sh --minimal    # Core seulement (pas de GUI, pas de Python étendu)
 sh necro_install.sh --full       # Tout, y compris toutes les toolboxes
 sh necro_install.sh --no-gui     # Pas d'interface graphique
-sh necro_install.sh --force      # Relancer toutes les étapes
+sh necro_install.sh --force      # Relancer toutes les étapes (ignore les marqueurs)
+sh necro_install.sh --dry-run    # Prévisualiser sans modifier le système
 ```
 
 ### Portage PowerBook G4
@@ -129,6 +142,9 @@ necros-vanish status       # Voir ce qui sera effacé
 ```
 
 ### necros-crypt — Crypto toolkit
+
+> Fourni par la toolbox **crypto** (`necros-toolbox crypto`), pas par le core —
+> non disponible en installation `--minimal`.
 
 ```bash
 necros-crypt hash file.bin           # Tous les hashes
@@ -230,11 +246,17 @@ NecrOS/
 ## Développement
 
 ```bash
-make lint      # Shellcheck
-make test      # Tests complets
+make lint      # shellcheck (dialecte dash — ash/dash supportent `local`)
+make fmt       # Vérifier le formatage (shfmt) ; make fmt-fix pour appliquer
+make test      # lint + suite de tests
 make build     # Construire l'ISO (requiert Alpine)
+make build-ppc # Bundle d'installation PowerPC (PowerBook G4)
 make release   # Créer un tarball de release
 ```
+
+> Portage PowerPC : voir [docs/package-matrix.md](docs/package-matrix.md) pour
+> la disponibilité des paquets par architecture. **Alpine ne construit pas de
+> port PowerPC 32-bit** ; le G4 passe par **Adélie Linux**.
 
 ---
 

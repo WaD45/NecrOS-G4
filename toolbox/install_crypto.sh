@@ -6,10 +6,18 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 _LIB="${SCRIPT_DIR}/../lib/necros-common.sh"
 [ -f "$_LIB" ] || _LIB="/usr/local/necros/lib/necros-common.sh"
-. "$_LIB" 2>/dev/null || { echo "[!] Library not found"; exit 1; }
+. "$_LIB" 2>/dev/null || {
+    echo "[!] Library not found"
+    exit 1
+}
 
 require_root
 detect_arch
+
+if necros_is_dry_run; then
+    info "[dry-run] $(basename "$0"): aucun changement — installerait les paquets et helpers de cette toolbox"
+    exit 0
+fi
 
 necros_banner
 log "Installation de la Toolbox Crypto & Stego..."
@@ -37,10 +45,10 @@ pkg_install john
 
 # --- Encoding tools ---
 log "Outils d'encodage..."
-pkg_install base64 2>/dev/null || true  # Usually part of coreutils
+pkg_install base64 2>/dev/null || true # Usually part of coreutils
 
 # --- Helper script ---
-cat > /usr/local/bin/necros-crypt << 'SCRIPT'
+cat >/usr/local/bin/necros-crypt <<'SCRIPT'
 #!/bin/sh
 # NecrOS — Crypto Swiss Army Knife
 

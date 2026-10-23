@@ -2,6 +2,46 @@
 
 All notable changes to NecrOS will be documented in this file.
 
+## [1.1.0] — 2026-10-23
+
+Audit & reliability pass (branch `claude/audit-1`). See `docs/AUDIT.md`.
+
+### Fixed
+- Repository URL was `NecrOS-G4-G4-G4` (tripled) in `install.sh` and
+  `core/update.sh` — network install and self-update always failed.
+- `deploy_necros_files()` used brace expansion in `mkdir`, which BusyBox
+  ash/dash do not expand, so core/toolbox files were never deployed.
+- `--minimal` now actually drops the GUI and the extended Python stack, as its
+  help always claimed.
+- Rewrote fragile `A && B || C` chains as explicit `if/else`.
+
+### Security (installer)
+- Every download goes through `necros_fetch` and is verified against a pinned
+  SHA-256 in `lib/necros-sources.sh`; an unverified download is refused by
+  default (`NECROS_ALLOW_UNVERIFIED=1` to override).
+- Removed the `curl … | sh` Oh My Zsh bootstrap (remote code execution).
+- GEF pinned to a release and checksum-verified; rockyou verified; dirb taken
+  from its package; radare2 built from a pinned tag; ffuf/subfinder pinned
+  (no `@latest`).
+- New `--dry-run` mode: preview the whole install with zero system mutation.
+
+### Quality
+- shellcheck clean under `-s dash` (the real ash/dash dialect); `shfmt -i 4 -ci`
+  applied across all scripts; colour fallback no longer leaks literal escapes
+  in non-tty output.
+- `make lint` now fails on findings (was always-pass); added `make fmt`/`fmt-fix`.
+
+### Tests & CI
+- Test suite expanded 53 → 69 assertions (checksum verification, dry-run, pinned
+  sources), still dependency-free POSIX sh.
+- CI reworked: lint and syntax jobs can now actually fail; added an unprivileged
+  `--dry-run` install smoke and a PowerPC bundle build.
+
+### Docs
+- `docs/AUDIT.md` (architecture, README gaps, debt), `docs/package-matrix.md`
+  with a reproducible generator, and the Alpine-has-no-ppc32 / use-Adélie
+  reality made explicit in `docs/powerbook-g4.md`.
+
 ## [1.0.0] — 2026-03-09
 
 ### Architecture

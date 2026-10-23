@@ -17,24 +17,31 @@ if [ ! -f "$LIB" ]; then
     # Fallback: already installed
     LIB="/usr/local/necros/lib/necros-common.sh"
 fi
-[ -f "$LIB" ] || { echo "[✗] Cannot find necros-common.sh"; exit 1; }
+[ -f "$LIB" ] || {
+    echo "[✗] Cannot find necros-common.sh"
+    exit 1
+}
 # shellcheck source=lib/necros-common.sh
 . "$LIB"
 
 # ---------------------------------------------------------------------------
 # CLI flags
 # ---------------------------------------------------------------------------
-INSTALL_MODE="standard"  # minimal | standard | full
+INSTALL_MODE="standard" # minimal | standard | full
 INSTALL_GUI=1
 FORCE=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --minimal)  INSTALL_MODE="minimal" ;;
-        --full)     INSTALL_MODE="full" ;;
-        --no-gui)   INSTALL_GUI=0 ;;
-        --force)    FORCE=1 ;;
-        -h|--help)
+        --minimal) INSTALL_MODE="minimal" ;;
+        --full) INSTALL_MODE="full" ;;
+        --no-gui) INSTALL_GUI=0 ;;
+        --force) FORCE=1 ;;
+        --dry-run)
+            NECROS_DRY_RUN=1
+            export NECROS_DRY_RUN
+            ;;
+        -h | --help)
             cat <<EOF
 NecrOS Installer v${NECROS_VERSION}
 
@@ -45,6 +52,7 @@ Options:
   --full        Everything including all toolboxes
   --no-gui      Skip X11/i3wm installation
   --force       Re-run all steps (ignore markers)
+  --dry-run     Show what would be done without changing the system
   -h, --help    Show this help
 
 Minimum requirements:
@@ -60,7 +68,7 @@ EOF
 done
 
 # Reset markers if --force
-[ "$FORCE" -eq 1 ] && rm -rf "$NECROS_MARKERS" 2>/dev/null
+if [ "$FORCE" -eq 1 ] && ! necros_is_dry_run; then rm -rf "$NECROS_MARKERS" 2>/dev/null; fi
 
 # ---------------------------------------------------------------------------
 # Pre-flight checks
@@ -74,6 +82,17 @@ preflight() {
 
     local _mem
     _mem=$(get_mem_mb)
+
+    # Auto-downgrade to minimal on very constrained hardware, BEFORE reporting,
+    # so the summary reflects what will actually be installed.
+    if [ "$_mem" -lt 384 ] && [ "$INSTALL_MODE" != "minimal" ]; then
+        warn "RAM < 384MB — basculement automatique en mode minimal"
+        INSTALL_MODE="minimal"
+    fi
+    # Minimal mode means core only: no GUI (the --help contract).
+    if [ "$INSTALL_MODE" = "minimal" ]; then
+        INSTALL_GUI=0
+    fi
 
     log "Architecture: ${NECROS_ARCH} (${NECROS_BITS}-bit)"
     log "RAM: ${_mem}MB"
@@ -90,13 +109,6 @@ preflight() {
         warn "RAM < 512MB — activation du swap automatique"
         ensure_swap 256
     fi
-
-    # Auto-downgrade to minimal on very constrained hardware
-    if [ "$_mem" -lt 384 ] && [ "$INSTALL_MODE" != "minimal" ]; then
-        warn "RAM < 384MB — basculement automatique en mode minimal"
-        INSTALL_MODE="minimal"
-        INSTALL_GUI=0
-    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -105,9 +117,14 @@ preflight() {
 setup_repositories() {
     log "Configuration des dépôts APK..."
 
+    if necros_is_dry_run; then
+        info "[dry-run] rafraîchirait/écrirait /etc/apk/repositories puis apk update"
+        return 0
+    fi
+
     if is_adelie; then
         info "Base Adélie détectée — conservation des dépôts système existants"
-        apk update >> "$NECROS_LOG" 2>&1
+        apk update >>"$NECROS_LOG" 2>&1
         ok "Dépôts Adélie rafraîchis"
         return 0
     fi
@@ -118,13 +135,13 @@ setup_repositories() {
 
     cp /etc/apk/repositories /etc/apk/repositories.necros-bak 2>/dev/null || true
 
-    cat > /etc/apk/repositories <<EOF
+    cat >/etc/apk/repositories <<EOF
 https://dl-cdn.alpinelinux.org/alpine/v${_ver}/main
 https://dl-cdn.alpinelinux.org/alpine/v${_ver}/community
 @testing https://dl-cdn.alpinelinux.org/alpine/edge/testing
 EOF
 
-    apk update >> "$NECROS_LOG" 2>&1
+    apk update >>"$NECROS_LOG" 2>&1
     ok "Dépôts configurés (Alpine v${_ver})"
 }
 
@@ -150,8 +167,10 @@ install_core() {
         ca-certificates openssl
 
     # doas config (idempotent)
-    if [ ! -f /etc/doas.conf ] || ! grep -q "permit persist :wheel" /etc/doas.conf 2>/dev/null; then
-        echo "permit persist :wheel" > /etc/doas.conf
+    if necros_is_dry_run; then
+        info "[dry-run] configurerait /etc/doas.conf (permit persist :wheel)"
+    elif [ ! -f /etc/doas.conf ] || ! grep -q "permit persist :wheel" /etc/doas.conf 2>/dev/null; then
+        echo "permit persist :wheel" >/etc/doas.conf
         chmod 600 /etc/doas.conf
     fi
 
@@ -194,6 +213,11 @@ install_networking() {
 # Python pentest libraries
 # ---------------------------------------------------------------------------
 install_python_tools() {
+    if [ "$INSTALL_MODE" = "minimal" ]; then
+        info "Mode minimal: bibliothèques Python étendues ignorées"
+        return 0
+    fi
+
     log "Installation des bibliothèques Python pentest..."
 
     pip_install \
@@ -224,7 +248,10 @@ install_python_tools() {
 # GUI: X11 + i3wm
 # ---------------------------------------------------------------------------
 install_gui() {
-    [ "$INSTALL_GUI" -eq 0 ] && { info "GUI désactivée (--no-gui)"; return 0; }
+    [ "$INSTALL_GUI" -eq 0 ] && {
+        info "GUI désactivée (--no-gui)"
+        return 0
+    }
 
     log "Installation de l'interface graphique..."
 
@@ -274,16 +301,21 @@ install_shell() {
 
     pkg_install zsh zsh-vcs
 
-    # Oh My Zsh — non-interactive install
-    if [ ! -d /root/.oh-my-zsh ]; then
-        sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" \
-            --unattended >> "$NECROS_LOG" 2>&1 || warn "Oh My Zsh non installé"
-    fi
+    # NOTE: NecrOS deliberately does NOT pipe a remote installer into a shell
+    # (the old `curl ... | sh` Oh My Zsh bootstrap). That is remote code
+    # execution with no integrity check, and it contradicts the lightweight
+    # goal. The shipped /root/.zshrc (configure_zshrc) provides a self-contained
+    # prompt and aliases and degrades gracefully when Oh My Zsh is absent.
+    # Users who want Oh My Zsh can install it themselves, post-install.
 
-    # Set zsh as default shell for root
-    if command -v chsh >/dev/null 2>&1; then
-        chsh -s /bin/zsh root 2>/dev/null || \
-            sed -i 's|root:/bin/ash|root:/bin/zsh|' /etc/passwd 2>/dev/null
+    if necros_is_dry_run; then
+        info "[dry-run] définirait zsh comme shell par défaut de root"
+    else
+        # Set zsh as default shell for root
+        if command -v chsh >/dev/null 2>&1; then
+            chsh -s /bin/zsh root 2>/dev/null ||
+                sed -i 's|root:/bin/ash|root:/bin/zsh|' /etc/passwd 2>/dev/null || true
+        fi
     fi
 
     ok "Shell configuré (zsh)"
@@ -295,12 +327,21 @@ install_shell() {
 deploy_necros_files() {
     log "Déploiement des fichiers NecrOS..."
 
+    if necros_is_dry_run; then
+        info "[dry-run] déploierait lib/core/toolbox dans /usr/local/necros + symlinks necros-*"
+        return 0
+    fi
+
     local _dest="/usr/local/necros"
-    mkdir -p "$_dest"/{lib,core,toolbox,wordlists}
+    # NOTE: brace expansion ({a,b,c}) is a bashism and is NOT expanded by
+    # BusyBox ash / dash, the shells NecrOS actually runs on. Spell out each
+    # directory so deployment works on the target.
+    mkdir -p "$_dest/lib" "$_dest/core" "$_dest/toolbox" "$_dest/wordlists"
     mkdir -p /usr/local/bin
 
     # Library
     cp "$SCRIPT_DIR/lib/necros-common.sh" "$_dest/lib/"
+    cp "$SCRIPT_DIR/lib/necros-sources.sh" "$_dest/lib/"
 
     # VERSION
     cp "$SCRIPT_DIR/VERSION" "$_dest/"
@@ -320,11 +361,11 @@ deploy_necros_files() {
     done
 
     # Symlink binaries
-    ln -sf "$_dest/core/vanish.sh"       /usr/local/bin/necros-vanish
-    ln -sf "$_dest/core/payload.sh"      /usr/local/bin/necros-payload
-    ln -sf "$_dest/core/recon.sh"        /usr/local/bin/necros-recon
-    ln -sf "$_dest/core/sysinfo.sh"      /usr/local/bin/necros-sysinfo
-    ln -sf "$_dest/core/update.sh"       /usr/local/bin/necros-update
+    ln -sf "$_dest/core/vanish.sh" /usr/local/bin/necros-vanish
+    ln -sf "$_dest/core/payload.sh" /usr/local/bin/necros-payload
+    ln -sf "$_dest/core/recon.sh" /usr/local/bin/necros-recon
+    ln -sf "$_dest/core/sysinfo.sh" /usr/local/bin/necros-sysinfo
+    ln -sf "$_dest/core/update.sh" /usr/local/bin/necros-update
 
     ok "Fichiers NecrOS déployés dans $_dest"
 }
@@ -335,7 +376,12 @@ deploy_necros_files() {
 create_toolbox_manager() {
     log "Création du gestionnaire de toolbox..."
 
-    cat > /usr/local/bin/necros-toolbox << 'TOOLBOX'
+    if necros_is_dry_run; then
+        info "[dry-run] écrirait /usr/local/bin/necros-toolbox"
+        return 0
+    fi
+
+    cat >/usr/local/bin/necros-toolbox <<'TOOLBOX'
 #!/bin/sh
 # NecrOS Toolbox Manager v1.0
 
@@ -442,8 +488,13 @@ configure_theme() {
 
     log "Application du thème NecrOS..."
 
+    if necros_is_dry_run; then
+        info "[dry-run] écrirait .Xresources, config i3/i3status, rofi, .xinitrc"
+        return 0
+    fi
+
     # --- Xresources (urxvt) ---
-    cat > /root/.Xresources << 'XRES'
+    cat >/root/.Xresources <<'XRES'
 ! NecrOS Terminal Theme — "The Necromancer"
 URxvt.scrollBar:       false
 URxvt.font:            xft:Terminus:size=12:antialias=true
@@ -479,7 +530,7 @@ XRES
 
     # --- i3 config ---
     mkdir -p /root/.config/i3
-    cat > /root/.config/i3/config << 'I3CONF'
+    cat >/root/.config/i3/config <<'I3CONF'
 # NecrOS i3 Configuration v1.0
 set $mod Mod4
 font pango:Terminus 10
@@ -614,7 +665,7 @@ exec --no-startup-id xsetroot -solid '#0a0a0a'
 I3CONF
 
     # --- i3status ---
-    cat > /root/.config/i3/i3status.conf << 'I3STAT'
+    cat >/root/.config/i3/i3status.conf <<'I3STAT'
 general {
     colors = true
     color_good = "#00ff41"
@@ -654,7 +705,7 @@ I3STAT
 
     # --- Rofi ---
     mkdir -p /root/.config/rofi
-    cat > /root/.config/rofi/necros.rasi << 'ROFI'
+    cat >/root/.config/rofi/necros.rasi <<'ROFI'
 * {
     background: #0a0a0a;
     foreground: #00ff41;
@@ -678,7 +729,7 @@ element selected { background-color: @selected-background; text-color: @selected
 ROFI
 
     # --- xinitrc ---
-    cat > /root/.xinitrc << 'XINIT'
+    cat >/root/.xinitrc <<'XINIT'
 #!/bin/sh
 xrdb -merge ~/.Xresources
 xsetroot -solid '#0a0a0a'
@@ -697,7 +748,12 @@ XINIT
 configure_zshrc() {
     log "Configuration zshrc..."
 
-    cat > /root/.zshrc << 'ZSHRC'
+    if necros_is_dry_run; then
+        info "[dry-run] écrirait /root/.zshrc"
+        return 0
+    fi
+
+    cat >/root/.zshrc <<'ZSHRC'
 # NecrOS ZSH Configuration v1.0
 
 # Oh My Zsh
@@ -771,11 +827,16 @@ ZSHRC
 install_splash() {
     log "Installation du splash de boot..."
 
-    cp "$SCRIPT_DIR/core/splash.sh" /etc/init.d/necros-splash 2>/dev/null || \
+    if necros_is_dry_run; then
+        info "[dry-run] installerait le service OpenRC necros-splash"
+        return 0
+    fi
+
+    cp "$SCRIPT_DIR/core/splash.sh" /etc/init.d/necros-splash 2>/dev/null ||
         cp /usr/local/necros/core/splash.sh /etc/init.d/necros-splash 2>/dev/null || {
-            warn "splash.sh non trouvé, skip"
-            return 0
-        }
+        warn "splash.sh non trouvé, skip"
+        return 0
+    }
     chmod +x /etc/init.d/necros-splash
     rc-update add necros-splash default 2>/dev/null || true
 
@@ -786,7 +847,11 @@ install_splash() {
 # Welcome message (TTY login)
 # ---------------------------------------------------------------------------
 create_welcome() {
-    cat > /etc/profile.d/necros-welcome.sh << 'WELCOME'
+    if necros_is_dry_run; then
+        info "[dry-run] écrirait /etc/profile.d/necros-welcome.sh"
+        return 0
+    fi
+    cat >/etc/profile.d/necros-welcome.sh <<'WELCOME'
 #!/bin/sh
 if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then
     clear
@@ -812,25 +877,26 @@ install_wordlists() {
     log "Installation des wordlists de base..."
 
     local _wl="/usr/share/wordlists"
-    mkdir -p "$_wl"
+    run_cmd mkdir -p "$_wl"
 
-    # SecLists — only the essentials (not the full 1GB+ repo)
+    # rockyou — verified download (fixed release asset, pinned SHA-256).
     if [ ! -f "$_wl/rockyou.txt.gz" ] && [ ! -f "$_wl/rockyou.txt" ]; then
-        info "Téléchargement de rockyou.txt.gz..."
-        wget -q "https://github.com/brannondorsey/naive-hashcat/releases/download/data/rockyou.txt" \
-            -O "$_wl/rockyou.txt" 2>/dev/null && \
-            gzip "$_wl/rockyou.txt" 2>/dev/null || \
-            warn "rockyou.txt non téléchargé"
+        if necros_fetch "$NECROS_ROCKYOU_URL" "$_wl/rockyou.txt" "$NECROS_ROCKYOU_SHA"; then
+            necros_is_dry_run || gzip "$_wl/rockyou.txt" 2>/dev/null || true
+        else
+            warn "rockyou non installé (téléchargement ou vérification échoué)"
+        fi
     fi
 
-    # Quick small wordlists
-    if [ ! -d "$_wl/dirb" ]; then
-        mkdir -p "$_wl/dirb"
-        wget -q "https://raw.githubusercontent.com/v0re/dirb/master/wordlists/common.txt" \
-            -O "$_wl/dirb/common.txt" 2>/dev/null || warn "dirb/common.txt non téléchargé"
+    # dirb common.txt — shipped by the 'dirb' apk package, no separate download.
+    if [ -f /usr/share/dirb/wordlists/common.txt ]; then
+        run_cmd mkdir -p "$_wl/dirb"
+        run_cmd ln -sf /usr/share/dirb/wordlists/common.txt "$_wl/dirb/common.txt"
+    else
+        info "dirb/common.txt sera fourni par le paquet 'dirb' (necros-toolbox web)"
     fi
 
-    ok "Wordlists installées dans $_wl"
+    ok "Wordlists prêtes dans $_wl"
 }
 
 # ---------------------------------------------------------------------------
@@ -853,6 +919,10 @@ install_all_toolboxes() {
 # ---------------------------------------------------------------------------
 cleanup() {
     log "Nettoyage..."
+    if necros_is_dry_run; then
+        info "[dry-run] apk cache clean + purge /tmp/necros-*"
+        return 0
+    fi
     apk cache clean 2>/dev/null || true
     rm -rf /tmp/necros-* 2>/dev/null || true
     ok "Nettoyage terminé"
@@ -863,7 +933,7 @@ cleanup() {
 # ---------------------------------------------------------------------------
 finish() {
     printf '\n%s' "$GREEN"
-    cat << 'FIN'
+    cat <<'FIN'
     ╔═══════════════════════════════════════════════════════════╗
     ║                                                           ║
     ║   NECROS v1.0 — INSTALLATION TERMINÉE                    ║
@@ -895,19 +965,19 @@ FIN
 main() {
     preflight
 
-    run_once "repositories"     setup_repositories
-    run_once "core_packages"    install_core
-    run_once "networking"       install_networking
-    run_once "python_tools"     install_python_tools
-    run_once "gui"              install_gui
-    run_once "shell"            install_shell
-    run_once "deploy_files"     deploy_necros_files
-    run_once "toolbox_manager"  create_toolbox_manager
-    run_once "theme"            configure_theme
-    run_once "zshrc"            configure_zshrc
-    run_once "splash"           install_splash
-    run_once "welcome"          create_welcome
-    run_once "wordlists"        install_wordlists
+    run_once "repositories" setup_repositories
+    run_once "core_packages" install_core
+    run_once "networking" install_networking
+    run_once "python_tools" install_python_tools
+    run_once "gui" install_gui
+    run_once "shell" install_shell
+    run_once "deploy_files" deploy_necros_files
+    run_once "toolbox_manager" create_toolbox_manager
+    run_once "theme" configure_theme
+    run_once "zshrc" configure_zshrc
+    run_once "splash" install_splash
+    run_once "welcome" create_welcome
+    run_once "wordlists" install_wordlists
 
     # Full mode installs all toolboxes
     install_all_toolboxes
