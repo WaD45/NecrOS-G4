@@ -296,7 +296,10 @@ deploy_necros_files() {
     log "Déploiement des fichiers NecrOS..."
 
     local _dest="/usr/local/necros"
-    mkdir -p "$_dest"/{lib,core,toolbox,wordlists}
+    # NOTE: brace expansion ({a,b,c}) is a bashism and is NOT expanded by
+    # BusyBox ash / dash, the shells NecrOS actually runs on. Spell out each
+    # directory so deployment works on the target.
+    mkdir -p "$_dest/lib" "$_dest/core" "$_dest/toolbox" "$_dest/wordlists"
     mkdir -p /usr/local/bin
 
     # Library

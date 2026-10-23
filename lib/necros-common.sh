@@ -228,8 +228,11 @@ ensure_swap() {
         chmod 600 "$_swapfile"
         mkswap "$_swapfile" >> "$NECROS_LOG" 2>&1
     fi
-    swapon "$_swapfile" 2>/dev/null && log "Swap activé (${_size_mb}MB)" || \
+    if swapon "$_swapfile" 2>/dev/null; then
+        log "Swap activé (${_size_mb}MB)"
+    else
         warn "Impossible d'activer le swap"
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -245,7 +248,7 @@ $1"
 _necros_run_cleanup() {
     local _line
     echo "$_necros_cleanup_hooks" | while IFS= read -r _line; do
-        [ -n "$_line" ] && eval "$_line" 2>/dev/null || true
+        if [ -n "$_line" ]; then eval "$_line" 2>/dev/null || true; fi
     done
 }
 

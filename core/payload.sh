@@ -220,7 +220,10 @@ while [ $# -gt 0 ]; do
         bind)    [ -n "$2" ] && { gen_bind "$2"; exit 0; } ;;
         web)     [ -n "$2" ] && { gen_webshell "$2"; exit 0; } ;;
         msf)     [ -n "$2" ] && { gen_msfvenom "$2"; exit 0; } ;;
-        listen)  [ -n "$2" ] && { gen_listener "$2"; exit 0; } || { gen_listener 1; exit 0; } ;;
+        listen)
+            if [ -n "$2" ]; then gen_listener "$2"; else gen_listener 1; fi
+            exit 0
+            ;;
     esac
     shift
 done

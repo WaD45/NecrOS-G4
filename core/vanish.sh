@@ -105,9 +105,9 @@ clear_network_traces() {
     # ARP cache
     ip neigh flush all 2>/dev/null || arp -d -a 2>/dev/null || true
     # Conntrack
-    command -v conntrack >/dev/null 2>&1 && conntrack -F 2>/dev/null || true
+    if command -v conntrack >/dev/null 2>&1; then conntrack -F 2>/dev/null || true; fi
     # DNS cache (if dnsmasq)
-    command -v killall >/dev/null 2>&1 && killall -HUP dnsmasq 2>/dev/null || true
+    if command -v killall >/dev/null 2>&1; then killall -HUP dnsmasq 2>/dev/null || true; fi
     # Flush routing cache
     ip route flush cache 2>/dev/null || true
     ok "Traces réseau effacées"

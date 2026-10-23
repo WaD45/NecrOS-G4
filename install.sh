@@ -7,7 +7,7 @@
 
 set -e
 
-REPO="https://github.com/WaD45/NecrOS-G4-G4-G4"
+REPO="https://github.com/WaD45/NecrOS-G4"
 BRANCH="main"
 INSTALL_DIR="/tmp/necros-install-$$"
 

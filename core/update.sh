@@ -16,7 +16,7 @@ _LIB="${SCRIPT_DIR}/../lib/necros-common.sh"
     ok()   { printf "${GREEN}[✓]${NC} %s\n" "$1"; }
 }
 
-REPO_URL="https://github.com/WaD45/NecrOS-G4-G4-G4"
+REPO_URL="https://github.com/WaD45/NecrOS-G4"
 NECROS_DIR="/usr/local/necros"
 TMP_DIR="/tmp/necros-update-$$"
 
