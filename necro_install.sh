@@ -83,6 +83,17 @@ preflight() {
     local _mem
     _mem=$(get_mem_mb)
 
+    # Auto-downgrade to minimal on very constrained hardware, BEFORE reporting,
+    # so the summary reflects what will actually be installed.
+    if [ "$_mem" -lt 384 ] && [ "$INSTALL_MODE" != "minimal" ]; then
+        warn "RAM < 384MB — basculement automatique en mode minimal"
+        INSTALL_MODE="minimal"
+    fi
+    # Minimal mode means core only: no GUI (the --help contract).
+    if [ "$INSTALL_MODE" = "minimal" ]; then
+        INSTALL_GUI=0
+    fi
+
     log "Architecture: ${NECROS_ARCH} (${NECROS_BITS}-bit)"
     log "RAM: ${_mem}MB"
     log "Disque libre: $(get_disk_free_mb /)MB"
@@ -97,13 +108,6 @@ preflight() {
     if [ "$_mem" -lt 512 ]; then
         warn "RAM < 512MB — activation du swap automatique"
         ensure_swap 256
-    fi
-
-    # Auto-downgrade to minimal on very constrained hardware
-    if [ "$_mem" -lt 384 ] && [ "$INSTALL_MODE" != "minimal" ]; then
-        warn "RAM < 384MB — basculement automatique en mode minimal"
-        INSTALL_MODE="minimal"
-        INSTALL_GUI=0
     fi
 }
 
@@ -209,6 +213,11 @@ install_networking() {
 # Python pentest libraries
 # ---------------------------------------------------------------------------
 install_python_tools() {
+    if [ "$INSTALL_MODE" = "minimal" ]; then
+        info "Mode minimal: bibliothèques Python étendues ignorées"
+        return 0
+    fi
+
     log "Installation des bibliothèques Python pentest..."
 
     pip_install \
