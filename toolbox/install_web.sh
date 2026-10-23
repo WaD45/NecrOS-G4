@@ -12,6 +12,11 @@ _LIB="${SCRIPT_DIR}/../lib/necros-common.sh"
 require_root
 detect_arch
 
+if necros_is_dry_run; then
+    info "[dry-run] $(basename "$0"): aucun changement — installerait les paquets et helpers de cette toolbox"
+    exit 0
+fi
+
 necros_banner
 log "Installation de la Toolbox Web Pentest..."
 
@@ -32,10 +37,11 @@ pip_install sqlmap
 # --- Fuzzers & directory brute ---
 log "Fuzzers et brute-forcers..."
 pkg_install dirb
-# ffuf via Go (lightweight, works on 32-bit)
+# ffuf via Go — pinned version (never @latest, so builds are reproducible)
 if command -v go >/dev/null 2>&1; then
-    go install github.com/ffuf/ffuf/v2@latest 2>/dev/null && \
+    if go install "github.com/ffuf/ffuf/v2@${NECROS_FFUF_VERSION}" 2>/dev/null; then
         cp "$(go env GOPATH)/bin/ffuf" /usr/local/bin/ 2>/dev/null || true
+    fi
 fi
 pkg_install gobuster
 

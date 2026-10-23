@@ -11,6 +11,11 @@ _LIB="${SCRIPT_DIR}/../lib/necros-common.sh"
 require_root
 detect_arch
 
+if necros_is_dry_run; then
+    info "[dry-run] $(basename "$0"): aucun changement — installerait les paquets et helpers de cette toolbox"
+    exit 0
+fi
+
 necros_banner
 log "Installation de la Toolbox Crypto & Stego..."
 

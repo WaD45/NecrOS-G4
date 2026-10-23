@@ -298,7 +298,12 @@ get_alpine_version() {
 # Requirement checks
 # ---------------------------------------------------------------------------
 require_root() {
-    [ "$(id -u)" -eq 0 ] || die "Ce script doit être exécuté en tant que root."
+    [ "$(id -u)" -eq 0 ] && return 0
+    if necros_is_dry_run; then
+        warn "[dry-run] non-root: l'exécution réelle exigerait root"
+        return 0
+    fi
+    die "Ce script doit être exécuté en tant que root."
 }
 
 require_alpine() {
@@ -308,6 +313,10 @@ require_alpine() {
 require_supported_base() {
     is_alpine && return 0
     is_adelie && return 0
+    if necros_is_dry_run; then
+        warn "[dry-run] base non supportée (${NECROS_BASE_DISTRO:-?}): l'exécution réelle exigerait Alpine/Adélie"
+        return 0
+    fi
     die "NecrOS nécessite une base APK/OpenRC compatible: Alpine Linux ou Adélie Linux."
 }
 
@@ -414,6 +423,7 @@ trap _necros_run_cleanup EXIT INT TERM
 NECROS_MARKERS="/var/lib/necros/markers"
 
 mark_done() {
+    necros_is_dry_run && return 0
     mkdir -p "$NECROS_MARKERS"
     touch "$NECROS_MARKERS/$1"
 }
