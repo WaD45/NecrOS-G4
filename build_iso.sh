@@ -85,27 +85,28 @@ log "Alpine base: v${ALPINE_VER}"
 log "Output: ${OUTPUT_DIR}"
 
 # ---------------------------------------------------------------------------
-# Install build dependencies
+# Install build dependencies — only for the x86 ISO path. The PPC bundle is a
+# plain overlay+tar artifact and needs none of the heavy x86 ISO toolchain.
 # ---------------------------------------------------------------------------
-log "Installing build tools..."
-apk add --no-cache \
-    alpine-sdk build-base apk-tools alpine-conf \
-    mtools dosfstools grub grub-efi \
-    squashfs-tools xorriso syslinux \
-    sudo 2>/dev/null || die "Cannot install build tools"
+if [ "$BUILD_ARCH" != "ppc" ]; then
+    log "Installing build tools..."
+    apk add --no-cache \
+        alpine-sdk build-base apk-tools alpine-conf \
+        mtools dosfstools grub grub-efi \
+        squashfs-tools xorriso syslinux \
+        sudo 2>/dev/null || die "Cannot install build tools"
 
-# ---------------------------------------------------------------------------
-# Setup builder user (abuild requirement)
-# ---------------------------------------------------------------------------
-if ! id "necros-builder" >/dev/null 2>&1; then
-    adduser -D necros-builder 2>/dev/null || true
-    addgroup necros-builder abuild 2>/dev/null || true
-    echo "necros-builder ALL=(ALL) NOPASSWD: ALL" >>/etc/sudoers 2>/dev/null || true
-fi
+    # Setup builder user (abuild requirement)
+    if ! id "necros-builder" >/dev/null 2>&1; then
+        adduser -D necros-builder 2>/dev/null || true
+        addgroup necros-builder abuild 2>/dev/null || true
+        echo "necros-builder ALL=(ALL) NOPASSWD: ALL" >>/etc/sudoers 2>/dev/null || true
+    fi
 
-# Generate signing keys if needed
-if [ ! -f /home/necros-builder/.abuild/abuild.conf ]; then
-    su - necros-builder -c "abuild-keygen -a -i -n" 2>/dev/null || true
+    # Generate signing keys if needed
+    if [ ! -f /home/necros-builder/.abuild/abuild.conf ]; then
+        su - necros-builder -c "abuild-keygen -a -i -n" 2>/dev/null || true
+    fi
 fi
 
 # ---------------------------------------------------------------------------

@@ -2,9 +2,8 @@ name: NecrOS CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "claude/**"]
   pull_request:
-    branches: [main]
 
 jobs:
   lint:
@@ -13,40 +12,45 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install shellcheck
-        run: sudo apt-get install -y shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
 
-      - name: Lint all shell scripts
+      - name: shellcheck (dash dialect, fails on findings)
+        run: make lint
+
+      - name: Install shfmt
         run: |
-          find . -name '*.sh' -not -path './.git/*' | while read f; do
-            echo "Checking $f..."
-            shellcheck -s sh -e SC1091,SC2034,SC1008 "$f" || true
-          done
+          go install mvdan.cc/sh/v3/cmd/shfmt@v3.14.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-  syntax-check:
+      - name: shfmt (check formatting)
+        run: make fmt
+
+  syntax:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Syntax check all scripts
+      - name: POSIX syntax check (fails on any bad script)
         run: |
-          FAIL=0
-          find . -name '*.sh' -not -path './.git/*' | while read f; do
-            if ! sh -n "$f" 2>/dev/null; then
-              echo "FAIL: $f"
-              FAIL=1
+          rc=0
+          for f in $(find . -name '*.sh' -not -path './.git/*'); do
+            if ! sh -n "$f"; then
+              echo "SYNTAX FAIL: $f"
+              rc=1
             fi
           done
-          exit $FAIL
+          exit "$rc"
 
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Run test suite
         run: sh tests/test_lib.sh
 
   test-alpine:
+    # The real target shell is BusyBox ash. This job runs the suite and a
+    # no-mutation dry-run of the installer on Alpine.
     runs-on: ubuntu-latest
     container:
       image: alpine:3.20
@@ -54,7 +58,36 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install test deps
-        run: apk add --no-cache coreutils grep sed gawk
+        run: apk add --no-cache coreutils grep sed gawk make shellcheck
 
-      - name: Run test suite on Alpine
+      - name: Run test suite (BusyBox ash)
         run: sh tests/test_lib.sh
+
+      - name: Lint on Alpine
+        run: make lint
+
+      - name: Dry-run install smoke (unprivileged, must not touch the system)
+        run: |
+          adduser -D tester
+          su tester -c 'sh necro_install.sh --dry-run --full'
+
+  build-ppc-bundle:
+    # Full x86 ISO build (Alpine mkimage) needs a privileged, large, network-
+    # heavy environment and is not run in CI. The PPC install bundle, however,
+    # is a lightweight overlay+tar artifact we can build and assert here.
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:3.20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bundle deps
+        run: apk add --no-cache tar git
+
+      - name: Build PPC bundle
+        run: sh build_iso.sh --arch ppc --output build
+
+      - name: Assert bundle was produced
+        run: |
+          ls -l build/necros-g4-*-ppc-bundle.tar.gz
+          tar tzf build/necros-g4-*-ppc-bundle.tar.gz | grep -q necros.apkovl.tar.gz
